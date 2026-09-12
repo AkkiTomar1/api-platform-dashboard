@@ -1,0 +1,45 @@
+services:
+  kong-dashboard-postgres:
+    image: postgres:16
+    container_name: kong-dashboard-postgres
+    environment:
+      POSTGRES_DB: kong_dashboard
+      POSTGRES_USER: kong_dashboard
+      POSTGRES_PASSWORD: kong_dashboard
+    ports:
+      - "5433:5432"
+    volumes:
+      - kong-dashboard-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kong_dashboard -d kong_dashboard"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  kong-dashboard-redis:
+    image: redis:7
+    container_name: kong-dashboard-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - kong-dashboard-redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  kong-dashboard-redisinsight:
+    image: redis/redisinsight:latest
+    container_name: kong-dashboard-redisinsight
+    ports:
+      - "5540:5540"
+    volumes:
+      - kong-dashboard-risdata:/data
+    depends_on:
+      - kong-dashboard-redis
+
+volumes:
+  kong-dashboard-pgdata:
+  kong-dashboard-redisdata:
+  kong-dashboard-risdata:
