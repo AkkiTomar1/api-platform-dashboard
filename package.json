@@ -1,0 +1,46 @@
+{
+  "name": "api-platform-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"bun run --cwd apps/api dev\" \"bun run --cwd apps/web dev\"",
+    "build": "bun run --cwd apps/api build && bun run --cwd apps/web build",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "keys:generate": "node apps/api/scripts/generate-keys.mjs",
+    "prisma:generate": "bun run --cwd apps/api prisma:generate",
+    "prisma:deploy": "bun run --cwd apps/api prisma:deploy",
+    "prisma:seed": "bun run --cwd apps/api prisma:seed",
+    "prisma:studio": "bun run --cwd apps/api prisma:studio",
+    "typecheck": "bun run --cwd apps/api typecheck && bun run --cwd apps/web typecheck"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.4.0",
+    "@commitlint/config-conventional": "^19.4.0",
+    "@playwright/test": "^1.46.0",
+    "@types/node": "^20.14.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^9.9.0",
+    "eslint-plugin-react": "^7.35.0",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "eslint-plugin-react-refresh": "^0.4.9",
+    "husky": "^9.1.4",
+    "lint-staged": "^15.2.9",
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
+  }
+}
