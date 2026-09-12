@@ -7,7 +7,7 @@ build/
 .env.local
 .env.*.local
 
-apps/web/tsconfig.tsbuildinfo
+*.tsbuildinfo
 
 *.log
 coverage/
