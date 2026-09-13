@@ -86,7 +86,6 @@ export const pluginCreateSchema = z.object({
   config: z.record(z.string(), z.unknown()).optional().default({}),
   enabled: z.boolean().optional().default(true),
   protocols: z.array(z.enum(["http", "https"])).optional().default(["http", "https"]),
-  serviceId: z.string().min(1),
 });
 
 export const routePluginCreateSchema = z.object({
@@ -94,7 +93,6 @@ export const routePluginCreateSchema = z.object({
   config: z.record(z.string(), z.unknown()).optional().default({}),
   enabled: z.boolean().optional().default(true),
   protocols: z.array(z.enum(["http", "https"])).optional().default(["http", "https"]),
-  routeId: z.string().min(1),
 });
 
 export const consumerPluginCreateSchema = z.object({
@@ -102,7 +100,6 @@ export const consumerPluginCreateSchema = z.object({
   config: z.record(z.string(), z.unknown()).optional().default({}),
   enabled: z.boolean().optional().default(true),
   protocols: z.array(z.enum(["http", "https"])).optional().default(["http", "https"]),
-  consumerId: z.string().min(1),
 });
 
 export const pluginUpdateSchema = z.object({

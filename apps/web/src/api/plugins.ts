@@ -6,17 +6,11 @@ import {
 } from "@shared";
 import { apiClient } from "./client";
 
-export type PluginCreateInput = z.input<typeof pluginCreateSchema> & {
-  serviceId: string;
-};
+export type PluginCreateInput = z.input<typeof pluginCreateSchema>;
 
-export type RoutePluginCreateInput = z.input<typeof routePluginCreateSchema> & {
-  routeId: string;
-};
+export type RoutePluginCreateInput = z.input<typeof routePluginCreateSchema>;
 
-export type ConsumerPluginCreateInput = z.input<typeof consumerPluginCreateSchema> & {
-  consumerId: string;
-};
+export type ConsumerPluginCreateInput = z.input<typeof consumerPluginCreateSchema>;
 
 export interface KongPlugin {
   id: string;
@@ -60,7 +54,7 @@ export async function listPlugins(serviceId: string): Promise<KongPlugin[]> {
 
 export async function createPlugin(
   serviceId: string,
-  input: Omit<PluginCreateInput, "serviceId">,
+  input: PluginCreateInput,
 ): Promise<KongPlugin> {
   const res = await apiClient.post<KongPlugin>(`/services/${serviceId}/plugins`, input);
   return res.data;
@@ -69,7 +63,7 @@ export async function createPlugin(
 export async function updatePlugin(
   serviceId: string,
   pluginId: string,
-  input: Partial<Omit<PluginCreateInput, "serviceId">>,
+  input: Partial<PluginCreateInput>,
 ): Promise<KongPlugin> {
   const res = await apiClient.patch<KongPlugin>(
     `/services/${serviceId}/plugins/${pluginId}`,
@@ -89,7 +83,7 @@ export async function listRoutePlugins(routeId: string): Promise<KongPlugin[]> {
 
 export async function createRoutePlugin(
   routeId: string,
-  input: Omit<RoutePluginCreateInput, "routeId">,
+  input: RoutePluginCreateInput,
 ): Promise<KongPlugin> {
   const res = await apiClient.post<KongPlugin>(`/routes/${routeId}/plugins`, input);
   return res.data;
@@ -98,7 +92,7 @@ export async function createRoutePlugin(
 export async function updateRoutePlugin(
   routeId: string,
   pluginId: string,
-  input: Partial<Omit<RoutePluginCreateInput, "routeId">>,
+  input: Partial<RoutePluginCreateInput>,
 ): Promise<KongPlugin> {
   const res = await apiClient.patch<KongPlugin>(
     `/routes/${routeId}/plugins/${pluginId}`,
@@ -118,7 +112,7 @@ export async function listConsumerPlugins(consumerId: string): Promise<KongPlugi
 
 export async function createConsumerPlugin(
   consumerId: string,
-  input: Omit<ConsumerPluginCreateInput, "consumerId">,
+  input: ConsumerPluginCreateInput,
 ): Promise<KongPlugin> {
   const res = await apiClient.post<KongPlugin>(`/consumers/${consumerId}/plugins`, input);
   return res.data;
@@ -127,7 +121,7 @@ export async function createConsumerPlugin(
 export async function updateConsumerPlugin(
   consumerId: string,
   pluginId: string,
-  input: Partial<Omit<ConsumerPluginCreateInput, "consumerId">>,
+  input: Partial<ConsumerPluginCreateInput>,
 ): Promise<KongPlugin> {
   const res = await apiClient.patch<KongPlugin>(
     `/consumers/${consumerId}/plugins/${pluginId}`,
