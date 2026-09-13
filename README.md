@@ -13,7 +13,9 @@ api-platform-dashboard/
 │   ├── shared/       # Zod DTOs, RBAC permission map, audit + Rbac types (consumed by api & web)
 │   └── ui/           # Shared UI primitives (Button, Table, Modal, Tabs, icons, toast)
 ├── infra/
-│   └── compose.yaml  # Local infra: PostgreSQL 16, Redis 7, RedisInsight
+│   ├── compose.yaml  # Local infra: PostgreSQL 16, Redis 7, RedisInsight
+│   └── kong/
+│       └── compose.yaml  # Local Kong Gateway (postgres-backed): proxy :8000, admin :8001
 └── scripts/          # lint-staged helper (prettier re-run after lint fixes)
 ```
 
@@ -65,6 +67,27 @@ consumer). Urls: `admin@apipdashboard.local` (platform_admin), `dev@apipdashboar
 the password with bcrypt and assigns an initial role.
 
 Frontend dev server proxies `/api` to `http://localhost:4000` (override via `VITE_API_TARGET`).
+
+### Kong Gateway (local)
+
+The dashboard manages Kong through its Admin API (`KONG_ADMIN_URL`). A postgres-backed Kong Gateway
+is included for local development:
+
+```bash
+# one-time DB migrations (fresh volume only)
+docker compose -f infra/kong/compose.yaml run --rm kong kong migrations bootstrap
+
+# start Kong (proxy :8000, admin :8001)
+docker compose -f infra/kong/compose.yaml up -d
+
+# point the API at it, then restart `bun run dev`
+echo "KONG_ADMIN_URL=http://localhost:8001" >> apps/api/.env
+```
+
+Kong runs in DB mode — required so Admin API writes for services, routes, plugins and credentials
+work (DB-less mode is read-only). Verify `http://localhost:8001/` returns the version JSON and
+`/api/health` reports `kong: "up"`. If Kong is unconfigured or unreachable, the API responds with a
+clear `ServiceUnavailable` message instead of a bare 502.
 
 ## Environment variables
 
