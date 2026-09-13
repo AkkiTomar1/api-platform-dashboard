@@ -78,6 +78,10 @@ apiClient.interceptors.response.use(
     } else if (status === 401 && !url.includes("/auth/login") && !url.includes("/auth/refresh")) {
       logoutLocal();
     }
+    const data = error.response?.data as { message?: unknown } | undefined;
+    if (typeof data?.message === "string") {
+      return Promise.reject(new Error(data.message));
+    }
     return Promise.reject(error);
   },
 );

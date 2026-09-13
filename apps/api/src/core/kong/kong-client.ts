@@ -4,6 +4,7 @@ import {
   ConflictException,
   HttpException,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import axios, { AxiosError } from "axios";
@@ -29,6 +30,11 @@ export class KongClient {
   }
 
   private async request<T>(method: string, path: string, data?: unknown): Promise<T> {
+    if (!this.url) {
+      throw new ServiceUnavailableException(
+        "Kong admin API is not configured (KONG_ADMIN_URL)",
+      );
+    }
     const client = this.client();
     try {
       const res = await client.request<T>({
@@ -38,7 +44,7 @@ export class KongClient {
       });
       return res.data;
     } catch (err) {
-      throw KongClient.mapKongError(err);
+      throw KongClient.mapKongError(err, this.url);
     }
   }
 
@@ -62,13 +68,18 @@ export class KongClient {
     return this.url.length > 0;
   }
 
-  static mapKongError(err: unknown): HttpException {
+  static mapKongError(err: unknown, baseUrl: string): HttpException {
     if (err instanceof HttpException) {
       return err;
     }
     if (err instanceof AxiosError) {
-      const status = err.response?.status;
-      const body = err.response?.data as Record<string, unknown> | undefined;
+      if (!err.response) {
+        return new ServiceUnavailableException(
+          `Kong admin API unreachable: ${baseUrl}`,
+        );
+      }
+      const status = err.response.status;
+      const body = err.response.data as Record<string, unknown> | undefined;
       const message =
         body?.message ?? body?.error ?? err.message ?? "Kong request failed";
       if (status === 404) {
@@ -77,10 +88,13 @@ export class KongClient {
       if (status === 409) {
         return new ConflictException(message);
       }
-      if (status && status >= 400 && status < 500) {
+      if (status >= 500) {
+        return new ServiceUnavailableException(message);
+      }
+      if (status >= 400 && status < 500) {
         return new BadRequestException(message);
       }
-      return new HttpException(message, status ?? 502);
+      return new HttpException(message, status);
     }
     return new HttpException("Kong request failed", 502);
   }
