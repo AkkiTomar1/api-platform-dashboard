@@ -76,7 +76,7 @@ export const routeCreateSchema = z.object({
   protocols: z.array(z.enum(["http", "https"])).optional().default(["http", "https"]),
   stripPath: z.boolean().optional().default(true),
   preserveHost: z.boolean().optional().default(false),
-  serviceId: z.string().min(1),
+  serviceId: z.string().min(1).optional(),
 });
 
 export const routeUpdateSchema = routeCreateSchema.partial();
