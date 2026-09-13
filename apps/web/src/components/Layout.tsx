@@ -7,10 +7,8 @@ import {
   Boxes,
   Users,
   ScrollText,
-  Settings,
   ShieldCheck,
   LogOut,
-  Puzzle,
 } from "lucide-react";
 import { cn } from "@ui";
 import type { ReactNode } from "react";
@@ -24,10 +22,8 @@ const navItems: Array<{
   { to: "/", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" />, roles: ["platform_admin", "platform_dev", "platform_viewer", "service_admin", "service_dev", "service_viewer", "consumer_admin"] },
   { to: "/services", label: "Services", icon: <Boxes className="h-4 w-4" />, roles: ["platform_admin", "platform_dev", "platform_viewer", "service_admin", "service_dev", "service_viewer", "consumer_admin"] },
   { to: "/consumers", label: "Consumers", icon: <Users className="h-4 w-4" />, roles: ["platform_admin", "platform_dev", "platform_viewer", "consumer_admin"] },
-  { to: "/plugins", label: "Plugins", icon: <Puzzle className="h-4 w-4" />, roles: ["platform_admin", "platform_dev", "platform_viewer"] },
   { to: "/audit-logs", label: "Audit Logs", icon: <ScrollText className="h-4 w-4" />, roles: ["platform_admin", "platform_dev", "platform_viewer", "service_admin", "service_dev", "service_viewer", "consumer_admin"] },
-  { to: "/settings", label: "Settings", icon: <Settings className="h-4 w-4" />, roles: ["platform_admin", "platform_dev", "platform_viewer", "service_admin", "service_dev", "service_viewer", "consumer_admin"] },
-  { to: "/admin", label: "Admin", icon: <ShieldCheck className="h-4 w-4" />, roles: ["platform_admin"] },
+  { to: "/admin", label: "User Management", icon: <ShieldCheck className="h-4 w-4" />, roles: ["platform_admin"] },
 ];
 
 const TIER_BADGE: Record<string, { label: string; className: string }> = {

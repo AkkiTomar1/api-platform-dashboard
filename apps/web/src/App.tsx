@@ -11,9 +11,7 @@ const DashboardPage = lazy(() => import("@/pages/DashboardPage").then((m) => ({ 
 const ServicesPage = lazy(() => import("@/features/services/ServicesPage").then((m) => ({ default: m.ServicesPage })));
 const ServiceDetailPage = lazy(() => import("@/features/services/ServiceDetailPage").then((m) => ({ default: m.ServiceDetailPage })));
 const ConsumersPage = lazy(() => import("@/features/consumers/ConsumersPage").then((m) => ({ default: m.ConsumersPage })));
-const PluginsPage = lazy(() => import("@/features/plugins/PluginsPage").then((m) => ({ default: m.PluginsPage })));
 const AuditLogsPage = lazy(() => import("@/features/auditLogs/AuditLogsView").then((m) => ({ default: m.AuditLogsView })));
-const SettingsPage = lazy(() => import("@/features/settings/SettingsPage").then((m) => ({ default: m.SettingsPage })));
 const AdminPage = lazy(() => import("@/features/admin/AdminPage").then((m) => ({ default: m.AdminPage })));
 
 function HomeRoute() {
@@ -57,16 +55,7 @@ export default function App() {
                 </RoleGuard>
               }
             />
-          <Route
-            path="plugins"
-            element={
-              <RoleGuard roles={["platform_admin", "platform_dev"]}>
-                <PluginsPage />
-              </RoleGuard>
-            }
-          />
           <Route path="audit-logs" element={<AuditLogsPage />} />
-          <Route path="settings" element={<SettingsPage />} />
           <Route
             path="admin"
             element={

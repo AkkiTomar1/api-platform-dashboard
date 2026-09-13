@@ -61,8 +61,8 @@ consumer). Urls: `admin@apipdashboard.local` (platform_admin), `dev@apipdashboar
 `service-dev@apipdashboard.local` (service_dev for the same two services),
 `service-viewer@apipdashboard.local` (service_viewer for `catalog-api`),
 `consumer-admin@apipdashboard.local` (consumer_admin, global). New users are added via the
-**Admin → New user** flow (`POST /admin/users`, requires `platform_admin`), which hashes the
-password with bcrypt and assigns an initial role.
+**User Management → New user** flow (`POST /admin/users`, requires `platform_admin`), which hashes
+the password with bcrypt and assigns an initial role.
 
 Frontend dev server proxies `/api` to `http://localhost:4000` (override via `VITE_API_TARGET`).
 

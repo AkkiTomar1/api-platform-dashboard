@@ -180,8 +180,8 @@ export function AdminPage() {
   return (
     <div>
       <PageHeader
-        title="Admin"
-        description="Platform administration — users and roles"
+        title="User Management"
+        description="User accounts and role assignments"
         actions={
           <div className="flex items-center gap-3">
             <div className="text-sm text-slate-500">
