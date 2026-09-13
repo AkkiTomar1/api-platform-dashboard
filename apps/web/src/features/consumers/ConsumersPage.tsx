@@ -7,6 +7,7 @@ import {
   Spinner,
   toast,
   Plus,
+  Pencil,
   Trash2,
   EyeOff,
   Modal,
@@ -18,11 +19,19 @@ import {
   deleteConsumer,
   type ConsumerSummary,
 } from "@/api/consumers";
+import {
+  listConsumerPlugins,
+  createConsumerPlugin,
+  updateConsumerPlugin,
+  deleteConsumerPlugin,
+  type KongPlugin,
+} from "@/api/plugins";
 import { createKeyAuthCredential } from "@/api/credentials";
 import { formatDate } from "@/lib/format";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/api/roleAssignments";
 import { ConsumerFormModal } from "./ConsumerFormModal";
+import { PluginModal, type PluginModalSubmit } from "@/features/plugins/PluginModal";
 
 interface GenerateState {
   consumerId: string;
@@ -36,10 +45,20 @@ export function ConsumersPage() {
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [generate, setGenerate] = useState<GenerateState | null>(null);
+  const [pluginsFor, setPluginsFor] = useState<ConsumerSummary | null>(null);
+  const [consumerPlugins, setConsumerPlugins] = useState<KongPlugin[]>([]);
+  const [pluginsLoading, setPluginsLoading] = useState(false);
+  const [pluginOpen, setPluginOpen] = useState(false);
+  const [pluginEditing, setPluginEditing] = useState<KongPlugin | null>(null);
+  const [pluginsSubmitting, setPluginsSubmitting] = useState(false);
 
   const canCreate = hasPermission(user, "consumers:create");
   const canDelete = hasPermission(user, "consumers:delete");
   const canCredential = hasPermission(user, "credentials:create");
+  const canManagePlugins = hasPermission(user, "plugins:read");
+  const canCreatePlugin = hasPermission(user, "plugins:create");
+  const canUpdatePlugin = hasPermission(user, "plugins:update");
+  const canDeletePlugin = hasPermission(user, "plugins:delete");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,6 +76,22 @@ export function ConsumersPage() {
     void load();
   }, [load]);
 
+  const loadConsumerPlugins = useCallback(async (consumerId: string) => {
+    setPluginsLoading(true);
+    try {
+      setConsumerPlugins(await listConsumerPlugins(consumerId));
+    } catch {
+      toast.error("Failed to load plugins");
+    } finally {
+      setPluginsLoading(false);
+    }
+  }, []);
+
+  const openConsumerPlugins = (consumer: ConsumerSummary) => {
+    setPluginsFor(consumer);
+    void loadConsumerPlugins(consumer.id);
+  };
+
   const onSubmit = async (values: { username?: string; customId?: string }) => {
     setSubmitting(true);
     try {
@@ -68,6 +103,45 @@ export function ConsumersPage() {
       toast.error(err instanceof Error ? err.message : "Create failed");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const onPluginSubmit = async (values: PluginModalSubmit) => {
+    if (!pluginsFor) return;
+    setPluginsSubmitting(true);
+    try {
+      if (pluginEditing) {
+        await updateConsumerPlugin(pluginsFor.id, pluginEditing.id, {
+          config: values.config,
+          enabled: values.enabled,
+        });
+        toast.success("Plugin updated");
+      } else {
+        await createConsumerPlugin(pluginsFor.id, {
+          name: values.name,
+          config: values.config,
+          enabled: values.enabled,
+          protocols: ["http", "https"],
+        });
+        toast.success("Plugin created");
+      }
+      setPluginOpen(false);
+      await loadConsumerPlugins(pluginsFor.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Request failed");
+    } finally {
+      setPluginsSubmitting(false);
+    }
+  };
+
+  const handlePluginDelete = async (plugin: KongPlugin) => {
+    if (!pluginsFor) return;
+    try {
+      await deleteConsumerPlugin(pluginsFor.id, plugin.id);
+      toast.success("Plugin deleted");
+      await loadConsumerPlugins(pluginsFor.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed");
     }
   };
 
@@ -123,6 +197,20 @@ export function ConsumersPage() {
             onClick={() => void handleGenerate(c.id)}
           >
             Generate key
+          </Button>
+        ) : null,
+    },
+    {
+      key: "plugins",
+      header: "Plugins",
+      render: (c) =>
+        canManagePlugins ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => openConsumerPlugins(c)}
+          >
+            Plugins
           </Button>
         ) : null,
     },
@@ -209,6 +297,121 @@ export function ConsumersPage() {
             )}
           </div>
         ) : null}
+      </Modal>
+
+      <Modal
+        open={pluginsFor !== null}
+        onClose={() => setPluginsFor(null)}
+        title={
+          pluginsFor
+            ? `Plugins · ${pluginsFor.username ?? pluginsFor.customId ?? pluginsFor.id}`
+            : "Plugins"
+        }
+        description="Plugins applied to this consumer (e.g. rate limiting, ACL, key-auth)."
+        size="xl"
+      >
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            {pluginsFor && canCreatePlugin ? (
+              <Button
+                size="sm"
+                leftIcon={<Plus className="h-4 w-4" />}
+                onClick={() => {
+                  setPluginEditing(null);
+                  setPluginOpen(true);
+                }}
+              >
+                Add plugin
+              </Button>
+            ) : null}
+          </div>
+          {pluginsLoading ? (
+            <div className="flex justify-center py-12">
+              <Spinner size="lg" />
+            </div>
+          ) : consumerPlugins.length === 0 ? (
+            <div className="rounded-lg border border-slate-200 p-8 text-center">
+              <p className="text-sm text-slate-500">
+                No plugins are enabled on this consumer.
+              </p>
+            </div>
+          ) : (
+            <Table
+              columns={[
+                {
+                  key: "name",
+                  header: "Name",
+                  render: (p) => <Badge tone="violet">{p.name}</Badge>,
+                },
+                {
+                  key: "enabled",
+                  header: "Enabled",
+                  render: (p) => (
+                    <Badge tone={p.enabled ? "green" : "red"}>
+                      {p.enabled ? "on" : "off"}
+                    </Badge>
+                  ),
+                },
+                {
+                  key: "config",
+                  header: "Config keys",
+                  render: (p) => (
+                    <span className="text-xs text-slate-500">
+                      {Object.keys(p.config ?? {}).join(", ") || "—"}
+                    </span>
+                  ),
+                },
+                {
+                  key: "actions",
+                  header: "",
+                  render: (p) => (
+                    <div className="flex justify-end gap-1">
+                      {canUpdatePlugin ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          leftIcon={<Pencil className="h-3.5 w-3.5" />}
+                          onClick={() => {
+                            setPluginEditing(p);
+                            setPluginOpen(true);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                      ) : null}
+                      {canDeletePlugin ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:bg-red-50"
+                          leftIcon={<Trash2 className="h-3.5 w-3.5" />}
+                          onClick={() => void handlePluginDelete(p)}
+                        >
+                          Delete
+                        </Button>
+                      ) : null}
+                    </div>
+                  ),
+                },
+              ]}
+              rows={consumerPlugins}
+              rowKey={(p) => p.id}
+            />
+          )}
+
+          <PluginModal
+            open={pluginOpen}
+            onClose={() => setPluginOpen(false)}
+            submitting={pluginsSubmitting}
+            onSubmit={(values) => void onPluginSubmit(values)}
+            editing={pluginEditing}
+            level="consumer"
+            title={
+              pluginEditing ? `Edit ${pluginEditing.name}` : "Add plugin"
+            }
+            description="Plugins attached to this consumer."
+          />
+        </div>
       </Modal>
     </div>
   );

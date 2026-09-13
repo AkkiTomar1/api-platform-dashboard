@@ -5,8 +5,6 @@ import {
   Table,
   Badge,
   EmptyState,
-  Modal,
-  Select,
   Spinner,
   toast,
   Plus,
@@ -14,68 +12,71 @@ import {
   Trash2,
 } from "@ui";
 import type { Column } from "@ui";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import {
   listPlugins,
   createPlugin,
   updatePlugin,
   deletePlugin,
-  PLUGIN_NAMES,
+  listRoutePlugins,
+  createRoutePlugin,
+  updateRoutePlugin,
+  deleteRoutePlugin,
   type KongPlugin,
+  type PluginLevel,
 } from "@/api/plugins";
+import { listRoutes, type KongRoute } from "@/api/routes";
 import type { ServiceDetail } from "@/api/services";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/api/roleAssignments";
+import { PluginModal, type PluginModalSubmit } from "@/features/plugins/PluginModal";
 
-const pluginFormSchema = z.object({
-  name: z.string().min(1, "Plugin is required"),
-  enabled: z.boolean().optional(),
-  configJson: z
-    .string()
-    .optional()
-    .default("{}")
-    .refine(
-      (value) => {
-        try {
-          JSON.parse(value ?? "{}");
-          return true;
-        } catch {
-          return false;
-        }
-      },
-      { message: "Invalid JSON" },
-    ),
-});
-
-type PluginFormValues = z.infer<typeof pluginFormSchema>;
+interface PluginRow {
+  plugin: KongPlugin;
+  level: "service" | "route";
+  routeId?: string;
+  routeName?: string;
+}
 
 export function PluginsTab({ service }: { service: ServiceDetail }) {
   const { user } = useAuth();
-  const [plugins, setPlugins] = useState<KongPlugin[]>([]);
+  const [rows, setRows] = useState<PluginRow[]>([]);
+  const [routes, setRoutes] = useState<KongRoute[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<KongPlugin | null>(null);
+  const [editingLevel, setEditingLevel] = useState<"service" | "route">("service");
+  const [editingRouteId, setEditingRouteId] = useState<string | undefined>(undefined);
+  const [level, setLevel] = useState<"service" | "route">("service");
+  const [routeId, setRouteId] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
 
   const canCreate = hasPermission(user, "plugins:create");
   const canUpdate = hasPermission(user, "plugins:update");
   const canDelete = hasPermission(user, "plugins:delete");
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<PluginFormValues>({
-    resolver: zodResolver(pluginFormSchema),
-  });
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setPlugins(await listPlugins(service.id));
+      const [servicePlugins, serviceRoutes] = await Promise.all([
+        listPlugins(service.id),
+        listRoutes(service.id),
+      ]);
+      setRoutes(serviceRoutes);
+      const routeRows = await Promise.all(
+        serviceRoutes.map(async (r) => {
+          const plugins = await listRoutePlugins(r.id);
+          return plugins.map((p) => ({
+            plugin: p,
+            level: "route" as const,
+            routeId: r.id,
+            routeName: r.name ?? r.id,
+          }));
+        }),
+      );
+      setRows([
+        ...servicePlugins.map((p) => ({ plugin: p, level: "service" as const })),
+        ...routeRows.flat(),
+      ]);
     } catch {
       toast.error("Failed to load plugins");
     } finally {
@@ -89,36 +90,55 @@ export function PluginsTab({ service }: { service: ServiceDetail }) {
 
   const openCreate = () => {
     setEditing(null);
-    reset({ name: "key-auth", enabled: true, configJson: "{}" });
+    setLevel("service");
+    setRouteId(undefined);
     setOpen(true);
   };
 
-  const openEdit = (plugin: KongPlugin) => {
-    setEditing(plugin);
-    reset({
-      name: plugin.name,
-      enabled: plugin.enabled,
-      configJson: JSON.stringify(plugin.config ?? {}, null, 2),
-    });
+  const openEdit = (row: PluginRow) => {
+    setEditing(row.plugin);
+    setEditingLevel(row.level);
+    setEditingRouteId(row.routeId);
     setOpen(true);
   };
 
-  const onSubmit = async (values: PluginFormValues) => {
+  const onSubmit = async (values: PluginModalSubmit) => {
     setSubmitting(true);
-    const config = JSON.parse(values.configJson ?? "{}") as Record<string, unknown>;
     try {
       if (editing) {
-        await updatePlugin(service.id, editing.id, {
-          config,
-          enabled: values.enabled,
-        });
+        if (editingLevel === "route" && editingRouteId) {
+          await updateRoutePlugin(editingRouteId, editing.id, {
+            config: values.config,
+            enabled: values.enabled,
+          });
+        } else {
+          await updatePlugin(service.id, editing.id, {
+            config: values.config,
+            enabled: values.enabled,
+          });
+        }
         toast.success("Plugin updated");
       } else {
-        await createPlugin(service.id, {
-          name: values.name,
-          config,
-          enabled: values.enabled,
-        });
+        if (level === "route") {
+          if (!routeId) {
+            toast.error("Select a route");
+            setSubmitting(false);
+            return;
+          }
+          await createRoutePlugin(routeId, {
+            name: values.name,
+            config: values.config,
+            enabled: values.enabled,
+            protocols: ["http", "https"],
+          });
+        } else {
+          await createPlugin(service.id, {
+            name: values.name,
+            config: values.config,
+            enabled: values.enabled,
+            protocols: ["http", "https"],
+          });
+        }
         toast.success("Plugin created");
       }
       setOpen(false);
@@ -130,9 +150,13 @@ export function PluginsTab({ service }: { service: ServiceDetail }) {
     }
   };
 
-  const handleDelete = async (pluginId: string) => {
+  const handleDelete = async (row: PluginRow) => {
     try {
-      await deletePlugin(service.id, pluginId);
+      if (row.level === "route" && row.routeId) {
+        await deleteRoutePlugin(row.routeId, row.plugin.id);
+      } else {
+        await deletePlugin(service.id, row.plugin.id);
+      }
       toast.success("Plugin deleted");
       await load();
     } catch (err) {
@@ -140,33 +164,53 @@ export function PluginsTab({ service }: { service: ServiceDetail }) {
     }
   };
 
-  const columns: Column<KongPlugin>[] = [
-    { key: "name", header: "Name", render: (p) => <Badge tone="violet">{p.name}</Badge> },
+  const levelLabel = (row: PluginRow) =>
+    row.level === "route"
+      ? `route · ${row.routeName}`
+      : "service";
+
+  const columns: Column<PluginRow>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (row) => <Badge tone="violet">{row.plugin.name}</Badge>,
+    },
+    {
+      key: "level",
+      header: "Level / Target",
+      render: (row) => (
+        <Badge tone={row.level === "route" ? "blue" : "gray"}>{levelLabel(row)}</Badge>
+      ),
+    },
     {
       key: "enabled",
       header: "Enabled",
-      render: (p) => <Badge tone={p.enabled ? "green" : "red"}>{p.enabled ? "on" : "off"}</Badge>,
+      render: (row) => (
+        <Badge tone={row.plugin.enabled ? "green" : "red"}>
+          {row.plugin.enabled ? "on" : "off"}
+        </Badge>
+      ),
     },
     {
       key: "config",
       header: "Config keys",
-      render: (p) => (
+      render: (row) => (
         <span className="text-xs text-slate-500">
-          {Object.keys(p.config ?? {}).join(", ") || "—"}
+          {Object.keys(row.plugin.config ?? {}).join(", ") || "—"}
         </span>
       ),
     },
     {
       key: "actions",
       header: "",
-      render: (p) => (
+      render: (row) => (
         <div className="flex justify-end gap-1">
           {canUpdate ? (
             <Button
               variant="ghost"
               size="sm"
               leftIcon={<Pencil className="h-3.5 w-3.5" />}
-              onClick={() => openEdit(p)}
+              onClick={() => openEdit(row)}
             >
               Edit
             </Button>
@@ -177,7 +221,7 @@ export function PluginsTab({ service }: { service: ServiceDetail }) {
               size="sm"
               className="text-red-600 hover:bg-red-50"
               leftIcon={<Trash2 className="h-3.5 w-3.5" />}
-              onClick={() => void handleDelete(p.id)}
+              onClick={() => void handleDelete(row)}
             >
               Delete
             </Button>
@@ -200,53 +244,34 @@ export function PluginsTab({ service }: { service: ServiceDetail }) {
         <div className="flex justify-center py-20">
           <Spinner size="lg" />
         </div>
-      ) : plugins.length === 0 ? (
+      ) : rows.length === 0 ? (
         <Card>
-          <EmptyState title="No plugins" description="No plugins are enabled on this service." />
+          <EmptyState
+            title="No plugins"
+            description="No plugins are enabled on this service or its routes."
+          />
         </Card>
       ) : (
-        <Table columns={columns} rows={plugins} rowKey={(p) => p.id} />
+        <Table columns={columns} rows={rows} rowKey={(row) => row.plugin.id} />
       )}
 
-      <Modal
+      <PluginModal
         open={open}
         onClose={() => setOpen(false)}
+        submitting={submitting}
+        onSubmit={(values) => void onSubmit(values)}
+        editing={editing}
+        level={(editing ? editingLevel : level) as PluginLevel}
+        onLevelChange={(next) => {
+          setLevel(next === "route" ? "route" : "service");
+          if (next !== "route") setRouteId(undefined);
+        }}
+        routes={routes}
+        routeId={editing ? editingRouteId : routeId}
+        onRouteChange={setRouteId}
         title={editing ? `Edit ${editing.name}` : "Add plugin"}
-        description="Plugins extend service behaviour (auth, rate limiting, CORS…)."
-      >
-        <form onSubmit={handleSubmit((v) => void onSubmit(v))} className="space-y-4">
-          <Select
-            label="Plugin"
-            error={errors.name?.message}
-            disabled={editing !== null}
-            options={PLUGIN_NAMES.map((name) => ({ value: name, label: name }))}
-            {...register("name")}
-          />
-          <div className="flex items-center gap-2">
-            <input type="checkbox" {...register("enabled")} className="h-4 w-4" />
-            <label className="text-sm text-slate-700">Enabled</label>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              JSON config
-            </label>
-            <textarea
-              rows={8}
-              spellCheck={false}
-              {...register("configJson")}
-              className="w-full rounded-lg border border-slate-300 p-3 font-mono text-xs text-slate-900 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200"
-            />
-            {errors.configJson ? (
-              <p className="mt-1 text-xs text-red-600">{errors.configJson.message}</p>
-            ) : null}
-          </div>
-          <div className="flex justify-end">
-            <Button type="submit" loading={submitting}>
-              {editing ? "Save" : "Create"}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+        description="Plugins extend service behaviour (auth, rate limiting, CORS…) at service or route level."
+      />
     </div>
   );
 }

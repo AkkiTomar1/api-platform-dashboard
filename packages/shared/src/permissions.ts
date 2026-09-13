@@ -150,6 +150,7 @@ export const PERMISSION_MAP: Record<RoleName, readonly Permission[]> = {
     PERMISSIONS.SERVICES_READ,
     ...CRUD("consumers", true, true, true, true),
     ...CRUD("credentials", true, true, true, true),
+    ...CRUD("plugins", true, true, true, true),
     PERMISSIONS.AUDIT_READ,
   ],
 };

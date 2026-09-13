@@ -1,9 +1,17 @@
 import { Module } from "@nestjs/common";
 import { KongPluginsService } from "./kong-plugins.service";
-import { KongPluginsController } from "./kong-plugins.controller";
+import {
+  KongPluginsController,
+  KongRoutePluginsController,
+  KongConsumerPluginsController,
+} from "./kong-plugins.controller";
 
 @Module({
-  controllers: [KongPluginsController],
+  controllers: [
+    KongPluginsController,
+    KongRoutePluginsController,
+    KongConsumerPluginsController,
+  ],
   providers: [KongPluginsService],
 })
 export class KongPluginsModule {}
