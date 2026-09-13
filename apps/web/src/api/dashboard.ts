@@ -12,6 +12,9 @@ export interface DashboardStats {
     kong?: string;
     degraded?: boolean;
   };
+  tier: string[];
+  roles: string[];
+  usersByRole: Array<{ role: string; count: number }>;
   recentAudit: Array<{
     id: string;
     action: string;

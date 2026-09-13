@@ -70,7 +70,7 @@ export class AdminService {
     }
 
     const username = input.username?.trim() || email.split("@")[0];
-    const initialRole = input.initialRole ?? "platform_user";
+    const initialRole = input.initialRole ?? "platform_viewer";
     const passwordHash = await bcrypt.hash(input.password, BCRYPT_COST);
 
     const user = await this.prisma.user.create({

@@ -34,6 +34,7 @@ export class AuditLogsController {
     @Query("userId") userId?: string,
     @Query("serviceId") serviceId?: string,
     @Query("consumerId") consumerId?: string,
+    @Query("actorRole") actorRole?: string,
   ) {
     return this.auditService.list(
       {
@@ -47,6 +48,7 @@ export class AuditLogsController {
         userId,
         serviceId,
         consumerId,
+        actorRole,
       },
       user,
     );

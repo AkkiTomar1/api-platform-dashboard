@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { PageLoader } from "@ui";
 import { Layout } from "@/components/Layout";
@@ -16,24 +16,8 @@ const AuditLogsPage = lazy(() => import("@/features/auditLogs/AuditLogsView").th
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage").then((m) => ({ default: m.SettingsPage })));
 const AdminPage = lazy(() => import("@/features/admin/AdminPage").then((m) => ({ default: m.AdminPage })));
 
-const READS_DASHBOARD = new Set(["platform_admin", "platform_dev", "service_viewer", "platform_user"]);
-const CONSUMER_FIRST = new Set(["consumer_admin"]);
-
 function HomeRoute() {
-  const { user } = useAuth();
-  const target = useMemo<string | null>(() => {
-    if (user === null) return null;
-    const roles = user.roles.map((r) => r.role);
-    if (user.isPlatformAdmin) return "/";
-    if (roles.some((r) => READS_DASHBOARD.has(r))) return "/";
-    if (roles.some((r) => CONSUMER_FIRST.has(r))) return "/consumers";
-    return "/services";
-  }, [user]);
-
-  if (user !== null && target === "/") {
-    return <DashboardPage />;
-  }
-  return target !== null ? <Navigate to={target} replace /> : null;
+  return <DashboardPage />;
 }
 
 function LoginRedirect({ children }: { children: React.ReactNode }) {
@@ -61,18 +45,18 @@ export default function App() {
           }
         />
 
-        <Route element={<RouteGuard><Layout /></RouteGuard>}>
-          <Route index element={<HomeRoute />} />
-          <Route path="services" element={<ServicesPage />} />
-          <Route path="services/:id" element={<ServiceDetailPage />} />
-          <Route
-            path="consumers"
-            element={
-              <RoleGuard roles={["platform_admin", "platform_dev", "consumer_admin", "service_admin", "service_developer", "service_viewer"]}>
-                <ConsumersPage />
-              </RoleGuard>
-            }
-          />
+<Route element={<RouteGuard><Layout /></RouteGuard>}>
+            <Route index element={<HomeRoute />} />
+            <Route path="services" element={<ServicesPage />} />
+            <Route path="services/:id" element={<ServiceDetailPage />} />
+            <Route
+              path="consumers"
+              element={
+                <RoleGuard roles={["platform_admin", "platform_dev", "platform_viewer", "consumer_admin"]}>
+                  <ConsumersPage />
+                </RoleGuard>
+              }
+            />
           <Route
             path="plugins"
             element={

@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { ROLES, type RoleName } from "./permissions";
+
+const roleEnum = z.enum([...ROLES] as [RoleName, ...RoleName[]]);
 
 export const idParamSchema = z.object({
   id: z.string().min(1),
@@ -29,7 +32,7 @@ export const adminUserCreateSchema = z.object({
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   password: z.string().min(8).max(128),
-  initialRole: z.string().optional(),
+  initialRole: roleEnum.optional(),
 });
 
 export const getServiceByIdQuerySchema = z.object({
@@ -115,13 +118,13 @@ export const credentialUpdateSchema = z.object({
 
 export const roleAssignmentCreateSchema = z.object({
   userId: z.string().min(1),
-  role: z.string().min(1),
+  role: roleEnum,
   resourceId: z.string().optional(),
   resourceType: z.string().optional(),
 });
 
 export const roleAssignmentUpdateSchema = z.object({
-  role: z.string().min(1).optional(),
+  role: roleEnum.optional(),
   resourceId: z.string().nullable().optional(),
   resourceType: z.string().nullable().optional(),
 });

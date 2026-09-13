@@ -11,6 +11,8 @@ export interface AuditLogEntry {
   beforeJson: Record<string, unknown> | null;
   afterJson: Record<string, unknown> | null;
   createdAt: string;
+  actorRoles?: string[];
+  actorRole?: string;
 }
 
 export interface AuditListResult {
@@ -31,6 +33,7 @@ export interface AuditListQuery {
   userId?: string;
   serviceId?: string;
   consumerId?: string;
+  actorRole?: string;
 }
 
 export async function listAuditLogs(

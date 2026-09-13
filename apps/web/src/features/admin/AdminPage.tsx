@@ -25,20 +25,24 @@ import {
 import { formatDate } from "@/lib/format";
 import { useAuth } from "@/lib/auth-context";
 import { isPlatformAdmin } from "@/api/admin";
+import { ROLES, tierOf } from "@shared";
 
 interface EditTarget {
   user: AdminUser;
 }
 
-const INVITABLE_ROLES = [
-  "platform_admin",
-  "platform_dev",
-  "platform_user",
-  "service_admin",
-  "service_developer",
-  "service_viewer",
-  "consumer_admin",
-];
+const INVITABLE_ROLES = [...ROLES];
+
+const ROLE_TONE: Record<string, "violet" | "blue" | "amber" | "gray"> = {
+  platform: "violet",
+  service: "blue",
+  consumer: "amber",
+};
+
+function roleTone(role: string): "violet" | "blue" | "amber" | "gray" {
+  const tier = tierOf(role);
+  return tier ? ROLE_TONE[tier] : "gray";
+}
 
 const emptyCreateForm = {
   email: "",
@@ -46,7 +50,7 @@ const emptyCreateForm = {
   firstName: "",
   lastName: "",
   password: "",
-  initialRole: "platform_user",
+  initialRole: "platform_viewer",
 };
 
 export function AdminPage() {
@@ -152,11 +156,11 @@ export function AdminPage() {
             <span className="text-xs text-slate-400">none</span>
           ) : (
             u.roles.map((r) => (
-              <Badge key={`${r.id}-${r.role}`} tone={r.role === "platform_admin" ? "violet" : "gray"}>
-                {r.role}
-                {r.resourceId ? ":scoped" : ""}
-              </Badge>
-            ))
+                <Badge key={`${r.id}-${r.role}`} tone={roleTone(r.role)}>
+                  {r.role}
+                  {r.resourceId ? ":scoped" : ""}
+                </Badge>
+              ))
           )}
         </div>
       ),

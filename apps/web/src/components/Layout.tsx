@@ -1,6 +1,7 @@
 import { NavLink, useNavigate, Outlet } from "react-router-dom";
 import { toast } from "@ui";
 import { useAuth } from "@/lib/auth-context";
+import { tierOf, TIER_ORDER } from "@shared";
 import {
   LayoutDashboard,
   Boxes,
@@ -20,14 +21,35 @@ const navItems: Array<{
   icon: ReactNode;
   roles: string[];
 }> = [
-  { to: "/", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" />, roles: ["platform_admin", "platform_dev", "service_viewer", "platform_user"] },
-  { to: "/services", label: "Services", icon: <Boxes className="h-4 w-4" />, roles: ["platform_admin", "platform_dev", "service_admin", "service_developer", "service_viewer", "consumer_admin", "platform_user"] },
-  { to: "/consumers", label: "Consumers", icon: <Users className="h-4 w-4" />, roles: ["platform_admin", "platform_dev", "consumer_admin", "service_admin", "service_developer"] },
-  { to: "/plugins", label: "Plugins", icon: <Puzzle className="h-4 w-4" />, roles: ["platform_admin", "platform_dev"] },
-  { to: "/audit-logs", label: "Audit Logs", icon: <ScrollText className="h-4 w-4" />, roles: ["platform_admin", "platform_dev", "service_admin", "service_developer", "service_viewer", "consumer_admin", "platform_user"] },
-  { to: "/settings", label: "Settings", icon: <Settings className="h-4 w-4" />, roles: ["platform_admin", "platform_dev", "service_admin", "service_developer", "service_viewer", "consumer_admin", "platform_user"] },
+  { to: "/", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" />, roles: ["platform_admin", "platform_dev", "platform_viewer", "service_admin", "service_dev", "service_viewer", "consumer_admin"] },
+  { to: "/services", label: "Services", icon: <Boxes className="h-4 w-4" />, roles: ["platform_admin", "platform_dev", "platform_viewer", "service_admin", "service_dev", "service_viewer", "consumer_admin"] },
+  { to: "/consumers", label: "Consumers", icon: <Users className="h-4 w-4" />, roles: ["platform_admin", "platform_dev", "platform_viewer", "consumer_admin"] },
+  { to: "/plugins", label: "Plugins", icon: <Puzzle className="h-4 w-4" />, roles: ["platform_admin", "platform_dev", "platform_viewer"] },
+  { to: "/audit-logs", label: "Audit Logs", icon: <ScrollText className="h-4 w-4" />, roles: ["platform_admin", "platform_dev", "platform_viewer", "service_admin", "service_dev", "service_viewer", "consumer_admin"] },
+  { to: "/settings", label: "Settings", icon: <Settings className="h-4 w-4" />, roles: ["platform_admin", "platform_dev", "platform_viewer", "service_admin", "service_dev", "service_viewer", "consumer_admin"] },
   { to: "/admin", label: "Admin", icon: <ShieldCheck className="h-4 w-4" />, roles: ["platform_admin"] },
 ];
+
+const TIER_BADGE: Record<string, { label: string; className: string }> = {
+  platform: { label: "Platform", className: "bg-indigo-100 text-indigo-700" },
+  service: { label: "Service", className: "bg-emerald-100 text-emerald-700" },
+  consumer: { label: "Consumer", className: "bg-amber-100 text-amber-700" },
+};
+
+function highestTier(roles: string[]): string | null {
+  let best: string | null = null;
+  let bestRank = -1;
+  for (const role of roles) {
+    const tier = tierOf(role);
+    if (!tier) continue;
+    const rank = TIER_ORDER[tier];
+    if (rank > bestRank) {
+      bestRank = rank;
+      best = tier;
+    }
+  }
+  return best;
+}
 
 export function Layout() {
   const { user, logout } = useAuth();
@@ -48,7 +70,9 @@ export function Layout() {
     navigate("/login");
   };
 
-  const roleTags = user.roles.map((r) => r.role).slice(0, 3);
+  const roleTags = user.roles.map((r) => r.role).slice(0, 2);
+  const tier = highestTier(user.roles.map((r) => r.role));
+  const tierBadge = tier ? TIER_BADGE[tier] : null;
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -94,7 +118,14 @@ export function Layout() {
               <p className="truncate text-sm font-medium text-slate-800">
                 {user.firstName} {user.lastName}
               </p>
-              <div className="flex gap-1">
+              <div className="flex flex-wrap items-center gap-1">
+                {tierBadge && (
+                  <span
+                    className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${tierBadge.className}`}
+                  >
+                    {tierBadge.label}
+                  </span>
+                )}
                 {roleTags.map((role) => (
                   <span
                     key={role}

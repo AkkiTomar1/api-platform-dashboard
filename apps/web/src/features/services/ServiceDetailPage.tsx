@@ -15,12 +15,19 @@ import { ConsumersTab } from "./tabs/ConsumersTab";
 import { CredentialsTab } from "./tabs/CredentialsTab";
 import { AuditHistoryTab } from "./tabs/AuditHistoryTab";
 import { OverviewTab } from "./tabs/OverviewTab";
+import { useAuth } from "@/lib/auth-context";
+import { hasPermission } from "@/api/roleAssignments";
+import { PERMISSIONS } from "@shared";
 
 export function ServiceDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
   const [service, setService] = useState<ServiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("overview");
+
+  const canReadConsumers = hasPermission(user, PERMISSIONS.CONSUMERS_READ);
+  const canReadCredentials = hasPermission(user, PERMISSIONS.CREDENTIALS_READ);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -51,8 +58,12 @@ export function ServiceDetailPage() {
     { key: "overview", label: "Overview", content: <OverviewTab service={service} /> },
     { key: "routes", label: "Routes", content: <RoutesTab service={service} /> },
     { key: "plugins", label: "Plugins", content: <PluginsTab service={service} /> },
-    { key: "consumers", label: "Consumers", content: <ConsumersTab service={service} /> },
-    { key: "credentials", label: "Credentials", content: <CredentialsTab service={service} /> },
+    ...(canReadConsumers
+      ? [{ key: "consumers", label: "Consumers", content: <ConsumersTab service={service} /> }]
+      : []),
+    ...(canReadCredentials
+      ? [{ key: "credentials", label: "Credentials", content: <CredentialsTab service={service} /> }]
+      : []),
     { key: "audit-history", label: "Audit History", content: <AuditHistoryTab service={service} /> },
   ];
 

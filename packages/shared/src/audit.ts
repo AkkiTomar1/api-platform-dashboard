@@ -53,6 +53,8 @@ export interface ResolvedAuditEntry {
   beforeJson?: Record<string, unknown> | null;
   afterJson?: Record<string, unknown> | null;
   createdAt: Date | string;
+  actorRoles?: string[];
+  actorRole?: string;
 }
 
 export interface AuditListQuery {
@@ -66,6 +68,7 @@ export interface AuditListQuery {
   userId?: string;
   serviceId?: string;
   consumerId?: string;
+  actorRole?: string;
 }
 
 export interface AuditListResult {

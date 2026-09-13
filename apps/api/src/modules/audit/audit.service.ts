@@ -1,6 +1,12 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import type { AuditListQuery, RequestUser } from "@shared";
+import { PERMISSIONS, ROLE_LEVELS } from "@shared";
+import {
+  tierOf,
+  tierRank,
+  type AuditListQuery,
+  type RequestUser,
+} from "@shared";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { PermissionService } from "../../rbac/permission.service";
 import { sanitize } from "./audit.helpers";
@@ -71,7 +77,13 @@ export class AuditService {
       "service",
     );
 
-    if (owned && owned.length === 0) {
+    const isShadowAdmin =
+      user.isPlatformAdmin ||
+      user.roles.some((r) => tierOf(r.role) === "platform");
+    const canSeeConsumers = user.permissions.includes(PERMISSIONS.CONSUMERS_READ);
+    const canSeeCredentials = user.permissions.includes(PERMISSIONS.CREDENTIALS_READ);
+
+    if (owned && owned.length === 0 && !canSeeConsumers && !canSeeCredentials) {
       return { data: [], total: 0, page, pageSize };
     }
 
@@ -83,6 +95,19 @@ export class AuditService {
     }
     if (query.userId) {
       where.userId = { equals: query.userId };
+    }
+    const andClauses: Prisma.AuditLogWhereInput[] = [];
+    if (query.actorRole) {
+      const matched = await this.prisma.roleAssignment.findMany({
+        where: { role: query.actorRole },
+        select: { userId: true },
+        distinct: ["userId"],
+      });
+      const userIds = matched.map((r) => r.userId);
+      if (userIds.length === 0) {
+        return { data: [], total: 0, page, pageSize };
+      }
+      andClauses.push({ userId: { in: userIds } });
     }
     const createdAt: Prisma.DateTimeFilter = {};
     if (query.dateFrom) {
@@ -97,10 +122,6 @@ export class AuditService {
 
     const orClauses: Prisma.AuditLogWhereInput[] = [];
 
-    const isShadowAdmin =
-      user.isPlatformAdmin ||
-      user.roles.some((r) => r.role === "platform_admin" || r.role === "platform_dev");
-
     if (!isShadowAdmin) {
       if (owned) {
         orClauses.push(
@@ -109,6 +130,9 @@ export class AuditService {
         );
       } else {
         orClauses.push({ userId: user.id });
+      }
+      if (canSeeConsumers || canSeeCredentials) {
+        orClauses.push({ resourceType: { in: ["consumer", "credential"] } });
       }
     }
 
@@ -123,6 +147,9 @@ export class AuditService {
       orClauses.push({ resourceName: { equals: query.consumerId } });
     }
 
+    if (andClauses.length > 0) {
+      where.AND = andClauses;
+    }
     if (orClauses.length > 0) {
       where.OR = orClauses;
     }
@@ -149,12 +176,16 @@ export class AuditService {
   private async resolveNames(rows: Array<Record<string, unknown>>) {
     const serviceIds = new Set<string>();
     const consumerIds = new Set<string>();
+    const userIds = new Set<string>();
     for (const row of rows) {
       if (row.resourceType === "service") {
         serviceIds.add(String(row.resourceName));
       }
       if (row.resourceType === "consumer") {
         consumerIds.add(String(row.resourceName));
+      }
+      if (row.userId) {
+        userIds.add(String(row.userId));
       }
       const after = asRecord(row.afterJson);
       const before = asRecord(row.beforeJson);
@@ -166,7 +197,7 @@ export class AuditService {
       }
     }
 
-    const [services, consumers] = await Promise.all([
+    const [services, consumers, assignments] = await Promise.all([
       serviceIds.size
         ? this.prisma.gatewayService.findMany({
             where: { id: { in: [...serviceIds] } },
@@ -179,12 +210,24 @@ export class AuditService {
             select: { id: true, username: true },
           })
         : Promise.resolve([]),
+      userIds.size
+        ? this.prisma.roleAssignment.findMany({
+            where: { userId: { in: [...userIds] } },
+            select: { userId: true, role: true },
+          })
+        : Promise.resolve([]),
     ]);
 
     const svcMap = new Map(services.map((s) => [s.id, s.name]));
     const conMap = new Map(
       consumers.map((c) => [c.id, c.username ?? c.id]),
     );
+    const rolesByUser = new Map<string, string[]>();
+    for (const a of assignments) {
+      const list = rolesByUser.get(a.userId) ?? [];
+      list.push(a.role);
+      rolesByUser.set(a.userId, list);
+    }
 
     return rows.map((row) => {
       const out = { ...row };
@@ -194,9 +237,25 @@ export class AuditService {
       if (row.resourceType === "consumer" && conMap.has(String(row.resourceName))) {
         out.resourceName = conMap.get(String(row.resourceName)) as string;
       }
+      const roles = row.userId ? rolesByUser.get(String(row.userId)) ?? [] : [];
+      out.actorRoles = roles;
+      out.actorRole = bestRole(roles);
       return out;
     });
   }
+}
+
+function bestRole(roles: string[]): string {
+  let best = "";
+  let bestRank = -1;
+  for (const role of roles) {
+    const rank = tierRank(tierOf(role)) * 1000 + (ROLE_LEVELS[role as keyof typeof ROLE_LEVELS] ?? 0);
+    if (rank > bestRank) {
+      bestRank = rank;
+      best = role;
+    }
+  }
+  return roles.length > 0 && best ? best : "";
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

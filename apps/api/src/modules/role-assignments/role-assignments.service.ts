@@ -4,8 +4,9 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type { RequestUser } from "@shared";
-import { PERMISSIONS, permissionLevel } from "@shared";
+import { PERMISSIONS, permissionLevel, tierOf } from "@shared";
 import { PrismaService } from "../../core/prisma/prisma.service";
+import { PermissionService } from "../../rbac/permission.service";
 import { AuditService } from "../audit/audit.service";
 
 interface AssignmentInput {
@@ -23,15 +24,10 @@ interface AssignmentUpdateInput {
 
 @Injectable()
 export class RoleAssignmentsService {
-  private static readonly PLATFORM_ROLES = [
-    "platform_admin",
-    "platform_dev",
-    "platform_user",
-  ];
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly permissionService: PermissionService,
   ) {}
 
   async list(user: RequestUser) {
@@ -60,7 +56,7 @@ export class RoleAssignmentsService {
       throw new NotFoundException("Target user not found");
     }
 
-    this.checkRoleAssignmentAllowed(input.role, actor);
+    await this.assertAssignmentAllowed(input, actor);
 
     const existing = await this.prisma.roleAssignment.findFirst({
       where: {
@@ -98,6 +94,8 @@ export class RoleAssignmentsService {
       },
     });
 
+    await this.permissionService.invalidateUser(input.userId);
+
     return assignment;
   }
 
@@ -114,12 +112,15 @@ export class RoleAssignmentsService {
     if (!existing) {
       throw new NotFoundException("Assignment not found");
     }
-    if (input.role) {
-      this.checkRoleAssignmentAllowed(input.role, actor);
-    }
-    if (RoleAssignmentsService.PLATFORM_ROLES.includes(existing.role)) {
-      this.requirePlatformAdmin(actor);
-    }
+    const nextRole = input.role ?? existing.role;
+    const nextResourceId =
+      input.resourceId !== undefined ? input.resourceId : existing.resourceId;
+    const nextResourceType =
+      input.resourceType !== undefined ? input.resourceType : existing.resourceType;
+    await this.assertAssignmentAllowed(
+      { role: nextRole, resourceId: nextResourceId, resourceType: nextResourceType },
+      actor,
+    );
 
     const updated = await this.prisma.roleAssignment.update({
       where: { id: assignmentId },
@@ -149,6 +150,8 @@ export class RoleAssignmentsService {
       },
     });
 
+    await this.permissionService.invalidateUser(existing.userId);
+
     return updated;
   }
 
@@ -160,7 +163,8 @@ export class RoleAssignmentsService {
     if (!existing) {
       throw new NotFoundException("Assignment not found");
     }
-    if (RoleAssignmentsService.PLATFORM_ROLES.includes(existing.role)) {
+    const tier = tierOf(existing.role);
+    if (tier === "platform" || tier === "consumer") {
       this.requirePlatformAdmin(actor);
     }
 
@@ -180,20 +184,57 @@ export class RoleAssignmentsService {
       },
     });
 
+    await this.permissionService.invalidateUser(existing.userId);
+
     return { ok: true };
   }
 
-  private checkRoleAssignmentAllowed(role: string, actor: RequestUser): void {
-    if (RoleAssignmentsService.PLATFORM_ROLES.includes(role)) {
+  private async assertAssignmentAllowed(
+    input: {
+      role: string;
+      resourceId?: string | null;
+      resourceType?: string | null;
+    },
+    actor: RequestUser,
+  ): Promise<void> {
+    const tier = tierOf(input.role);
+    if (tier === "platform" || tier === "consumer") {
       this.requirePlatformAdmin(actor);
       return;
     }
-    const has = actor.permissions.includes(PERMISSIONS.ROLE_ASSIGN);
-    if (!has && !actor.isPlatformAdmin) {
+    if (tier !== "service") {
+      throw new ForbiddenException("Unknown role");
+    }
+    const actorLevel = Math.max(
+      0,
+      ...actor.roles.map((r) => permissionLevel(r.role)),
+    );
+    if (permissionLevel(input.role) > actorLevel) {
+      throw new ForbiddenException("Cannot assign a role higher than your own");
+    }
+    if (actor.isPlatformAdmin) {
+      return;
+    }
+    if (!actor.permissions.includes(PERMISSIONS.ROLE_ASSIGN)) {
       throw new ForbiddenException("Missing role:assign permission");
     }
-    if (permissionLevel(role) > permissionLevel(actor.roles[0]?.role ?? "")) {
-      throw new ForbiddenException("Cannot assign a role higher than your own");
+    const rtype = input.resourceType ?? null;
+    const rid = input.resourceId ?? null;
+    if (rtype !== null && rtype !== "service") {
+      throw new ForbiddenException("Only service-scoped assignments are supported");
+    }
+    if (rid === null) {
+      throw new ForbiddenException("Global service roles require platform admin");
+    }
+    const allowed = await this.permissionService.canAccessResource(
+      actor.roles,
+      actor.permissions,
+      [PERMISSIONS.SERVICES_READ],
+      "service",
+      rid,
+    );
+    if (!allowed) {
+      throw new ForbiddenException("Cannot assign a role for a service you do not own");
     }
   }
 

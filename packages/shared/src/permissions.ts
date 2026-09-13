@@ -33,33 +33,59 @@ export const ALL_PERMISSIONS: readonly Permission[] = Object.values(
   PERMISSIONS,
 ) as readonly Permission[];
 
+export type Tier = "platform" | "service" | "consumer";
+
 export type RoleName =
   | "platform_admin"
   | "platform_dev"
+  | "platform_viewer"
   | "service_admin"
-  | "service_developer"
+  | "service_dev"
   | "service_viewer"
-  | "consumer_admin"
-  | "platform_user";
+  | "consumer_admin";
 
 export const ROLES: readonly RoleName[] = [
   "platform_admin",
   "platform_dev",
+  "platform_viewer",
   "service_admin",
-  "service_developer",
+  "service_dev",
   "service_viewer",
   "consumer_admin",
-  "platform_user",
 ];
+
+export const ROLE_TIERS: Record<RoleName, Tier> = {
+  platform_admin: "platform",
+  platform_dev: "platform",
+  platform_viewer: "platform",
+  service_admin: "service",
+  service_dev: "service",
+  service_viewer: "service",
+  consumer_admin: "consumer",
+};
+
+export function tierOf(role: string): Tier | null {
+  return (ROLE_TIERS as Record<string, Tier>)[role] ?? null;
+}
+
+export const TIER_ORDER: Record<Tier, number> = {
+  platform: 3,
+  service: 2,
+  consumer: 1,
+};
+
+export function tierRank(tier: Tier | null): number {
+  return tier === null ? 0 : TIER_ORDER[tier];
+}
 
 export const ROLE_LEVELS: Record<RoleName, number> = {
   platform_admin: 99,
   platform_dev: 90,
-  service_admin: 30,
-  service_developer: 20,
-  service_viewer: 10,
+  platform_viewer: 80,
+  service_admin: 55,
+  service_dev: 45,
+  service_viewer: 35,
   consumer_admin: 30,
-  platform_user: 1,
 };
 
 const CRUD = (
@@ -88,25 +114,28 @@ export const PERMISSION_MAP: Record<RoleName, readonly Permission[]> = {
     ...CRUD("credentials", true, true, true, true),
     PERMISSIONS.AUDIT_READ,
   ],
+  platform_viewer: [
+    PERMISSIONS.DASHBOARD_VIEW,
+    ...CRUD("services", true, false, false, false),
+    ...CRUD("routes", true, false, false, false),
+    ...CRUD("plugins", true, false, false, false),
+    ...CRUD("consumers", true, false, false, false),
+    ...CRUD("credentials", true, false, false, false),
+    PERMISSIONS.AUDIT_READ,
+  ],
   service_admin: [
     PERMISSIONS.DASHBOARD_VIEW,
     ...CRUD("services", true, true, true, true),
     ...CRUD("routes", true, true, true, true),
     ...CRUD("plugins", true, true, true, true),
-    ...CRUD("consumers", true, true, true, true).filter(
-      (p) => p !== PERMISSIONS.CONSUMERS_DELETE,
-    ),
-    ...CRUD("credentials", true, true, true, true),
     PERMISSIONS.AUDIT_READ,
     PERMISSIONS.ROLE_ASSIGN,
   ],
-  service_developer: [
+  service_dev: [
     PERMISSIONS.DASHBOARD_VIEW,
     ...CRUD("services", true, false, true, false),
     ...CRUD("routes", true, true, true, false),
     ...CRUD("plugins", true, true, true, false),
-    ...CRUD("consumers", true, true, true, false),
-    ...CRUD("credentials", true, true, true, false),
     PERMISSIONS.AUDIT_READ,
   ],
   service_viewer: [
@@ -114,8 +143,6 @@ export const PERMISSION_MAP: Record<RoleName, readonly Permission[]> = {
     PERMISSIONS.SERVICES_READ,
     PERMISSIONS.ROUTES_READ,
     PERMISSIONS.PLUGINS_READ,
-    PERMISSIONS.CONSUMERS_READ,
-    PERMISSIONS.CREDENTIALS_READ,
     PERMISSIONS.AUDIT_READ,
   ],
   consumer_admin: [
@@ -123,12 +150,6 @@ export const PERMISSION_MAP: Record<RoleName, readonly Permission[]> = {
     PERMISSIONS.SERVICES_READ,
     ...CRUD("consumers", true, true, true, true),
     ...CRUD("credentials", true, true, true, true),
-    PERMISSIONS.AUDIT_READ,
-    PERMISSIONS.ROLE_ASSIGN,
-  ],
-  platform_user: [
-    PERMISSIONS.DASHBOARD_VIEW,
-    PERMISSIONS.SERVICES_READ,
     PERMISSIONS.AUDIT_READ,
   ],
 };

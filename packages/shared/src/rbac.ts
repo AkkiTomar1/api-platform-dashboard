@@ -1,4 +1,6 @@
 import type { Permission } from "./permissions";
+export type { Tier } from "./permissions";
+export { tierOf, tierRank, ROLE_TIERS, TIER_ORDER } from "./permissions";
 
 export interface RoleAssignmentEntry {
   role: string;

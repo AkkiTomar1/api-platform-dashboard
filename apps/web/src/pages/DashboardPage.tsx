@@ -8,11 +8,37 @@ import {
   Database,
   Activity,
   ShieldCheck,
+  Users,
 } from "@ui";
 import { fetchDashboardStats, type DashboardStats } from "@/api/dashboard";
 import { formatDate } from "@/lib/format";
+import { useAuth } from "@/lib/auth-context";
+import { hasPermission } from "@/api/roleAssignments";
+import { PERMISSIONS, tierOf, TIER_ORDER } from "@shared";
+
+const TIER_BADGE: Record<string, { label: string; tone: "violet" | "blue" | "amber" }> = {
+  platform: { label: "Platform", tone: "violet" },
+  service: { label: "Service", tone: "blue" },
+  consumer: { label: "Consumer", tone: "amber" },
+};
+
+function highestTier(roles: string[]): string | null {
+  let best: string | null = null;
+  let bestRank = -1;
+  for (const role of roles) {
+    const tier = tierOf(role);
+    if (!tier) continue;
+    const rank = TIER_ORDER[tier];
+    if (rank > bestRank) {
+      bestRank = rank;
+      best = tier;
+    }
+  }
+  return best;
+}
 
 export function DashboardPage() {
+  const { user } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,11 +68,25 @@ export function DashboardPage() {
     label: `${healthOk ? "Healthy" : "Degraded"} · ${stats.health?.status ?? "unknown"}`,
   };
 
+  const roles = stats.roles ?? [];
+  const tier = highestTier(roles);
+  const tierBadge = tier ? TIER_BADGE[tier] : null;
+
   return (
     <div>
       <PageHeader
         title="Dashboard"
         description="Platform overview at a glance"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {tierBadge && (
+              <Badge tone={tierBadge.tone}>{tierBadge.label}</Badge>
+            )}
+            {roles.slice(0, 3).map((role) => (
+              <Badge key={role} tone="gray">{role}</Badge>
+            ))}
+          </div>
+        }
       />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -117,19 +157,39 @@ export function DashboardPage() {
                 <p className="text-xs text-slate-500">Manage gateway services</p>
               </div>
             </Link>
-            <Link
-              to="/consumers"
-              className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 hover:border-brand-300 hover:bg-brand-50"
-            >
-              <ShieldCheck className="h-5 w-5 text-brand-600" />
-              <div>
-                <p className="text-sm font-medium text-slate-800">Consumers</p>
-                <p className="text-xs text-slate-500">Manage API consumers</p>
-              </div>
-            </Link>
+            {hasPermission(user, PERMISSIONS.CONSUMERS_READ) && (
+              <Link
+                to="/consumers"
+                className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 hover:border-brand-300 hover:bg-brand-50"
+              >
+                <ShieldCheck className="h-5 w-5 text-brand-600" />
+                <div>
+                  <p className="text-sm font-medium text-slate-800">Consumers</p>
+                  <p className="text-xs text-slate-500">Manage API consumers</p>
+                </div>
+              </Link>
+            )}
           </div>
         </Card>
       </div>
+
+      {stats.usersByRole && stats.usersByRole.length > 0 && (
+        <div className="mt-6">
+          <Card title="Users by Role" subtitle="How platform roles are distributed">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {stats.usersByRole.map((row) => (
+                <div key={row.role} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-slate-400" />
+                    <span className="text-sm font-medium text-slate-700">{row.role}</span>
+                  </div>
+                  <span className="text-2xl font-bold text-slate-900">{row.count}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

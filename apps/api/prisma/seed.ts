@@ -6,12 +6,23 @@ const prisma = new PrismaClient();
 const SEED_PASSWORD = "Temporary123!";
 const BCRYPT_COST = 10;
 
+interface SeedRoleEntry {
+  role: string;
+  kongName?: string;
+}
+
+type SeedRole = string | SeedRoleEntry;
+
 interface SeedUser {
   email: string;
   username: string;
   firstName: string;
   lastName: string;
-  roles: string[];
+  roles: SeedRole[];
+}
+
+function toSeedRole(entry: SeedRole): SeedRoleEntry {
+  return typeof entry === "string" ? { role: entry } : entry;
 }
 
 const seedUsers: SeedUser[] = [
@@ -34,35 +45,41 @@ const seedUsers: SeedUser[] = [
     username: "service-admin",
     firstName: "Service",
     lastName: "Admin",
-    roles: ["service_admin", "role:assign"],
+    roles: [
+      { role: "service_admin", kongName: "catalog-api" },
+      { role: "service_admin", kongName: "orders-api" },
+    ],
   },
   {
     email: "service-dev@apipdashboard.local",
     username: "service-developer",
     firstName: "Service",
     lastName: "Developer",
-    roles: ["service_developer"],
+    roles: [
+      { role: "service_dev", kongName: "catalog-api" },
+      { role: "service_dev", kongName: "orders-api" },
+    ],
   },
   {
     email: "service-viewer@apipdashboard.local",
     username: "service-viewer",
     firstName: "Service",
     lastName: "Viewer",
-    roles: ["service_viewer"],
+    roles: [{ role: "service_viewer", kongName: "catalog-api" }],
   },
   {
     email: "consumer-admin@apipdashboard.local",
     username: "consumer-admin",
     firstName: "Consumer",
     lastName: "Admin",
-    roles: ["consumer_admin", "role:assign"],
+    roles: ["consumer_admin"],
   },
   {
     email: "user@apipdashboard.local",
     username: "platform-user",
     firstName: "Platform",
     lastName: "User",
-    roles: ["platform_user"],
+    roles: ["platform_viewer"],
   },
 ];
 
@@ -95,6 +112,37 @@ const defaultServices: Array<{
 async function main() {
   const passwordHash = await bcrypt.hash(SEED_PASSWORD, BCRYPT_COST);
 
+  for (const svc of defaultServices) {
+    const existing = await prisma.gatewayService.findFirst({
+      where: { kongName: svc.kongName },
+    });
+    if (existing) {
+      await prisma.gatewayService.update({
+        where: { id: existing.id },
+        data: {
+          name: svc.name,
+          description: svc.description,
+          tags: svc.tags,
+        },
+      });
+    } else {
+      await prisma.gatewayService.create({
+        data: {
+          name: svc.name,
+          description: svc.description,
+          kongName: svc.kongName,
+          tags: svc.tags,
+        },
+      });
+    }
+  }
+
+  await prisma.roleAssignment.deleteMany({
+    where: {
+      role: { in: ["role:assign", "platform_user", "service_developer"] },
+    },
+  });
+
   for (const user of seedUsers) {
     await prisma.user.upsert({
       where: { email: user.email },
@@ -121,13 +169,39 @@ async function main() {
       throw new Error(`failed to create seed user ${user.username}`);
     }
 
-    for (const role of user.roles) {
+    const scopedRoles = new Set(
+      user.roles
+        .map(toSeedRole)
+        .filter((e) => e.kongName)
+        .map((e) => e.role),
+    );
+    if (scopedRoles.size > 0) {
+      await prisma.roleAssignment.deleteMany({
+        where: { userId: dbUser.id, role: { in: [...scopedRoles] }, resourceId: null },
+      });
+    }
+
+    for (const entry of user.roles) {
+      const { role, kongName } = toSeedRole(entry);
+      let resourceId: string | null = null;
+      let resourceType: string | null = null;
+      if (kongName) {
+        const svc = await prisma.gatewayService.findFirst({
+          where: { kongName },
+        });
+        if (!svc) {
+          throw new Error(`seed service not found: ${kongName}`);
+        }
+        resourceId = svc.id;
+        resourceType = "service";
+      }
+
       const existingRole = await prisma.roleAssignment.findFirst({
         where: {
           userId: dbUser.id,
           role,
-          resourceId: null,
-          resourceType: null,
+          resourceType,
+          resourceId,
         },
       });
       if (existingRole) {
@@ -137,33 +211,8 @@ async function main() {
         data: {
           userId: dbUser.id,
           role,
-          resourceId: null,
-          resourceType: null,
-        },
-      });
-    }
-  }
-
-  for (const svc of defaultServices) {
-    const existing = await prisma.gatewayService.findFirst({
-      where: { kongName: svc.kongName },
-    });
-    if (existing) {
-      await prisma.gatewayService.update({
-        where: { id: existing.id },
-        data: {
-          name: svc.name,
-          description: svc.description,
-          tags: svc.tags,
-        },
-      });
-    } else {
-      await prisma.gatewayService.create({
-        data: {
-          name: svc.name,
-          description: svc.description,
-          kongName: svc.kongName,
-          tags: svc.tags,
+          resourceId,
+          resourceType,
         },
       });
     }

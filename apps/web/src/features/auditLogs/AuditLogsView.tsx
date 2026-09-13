@@ -16,6 +16,7 @@ import { formatDate } from "@/lib/format";
 import { DiffModal } from "./components/DiffModal";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/api/roleAssignments";
+import { ROLES, tierOf } from "@shared";
 
 const ACTIONS = [
   "CREATE",
@@ -38,6 +39,18 @@ const RESOURCE_TYPES = [
   "user",
   "system",
 ];
+
+const ROLE_TONE: Record<string, "violet" | "blue" | "amber" | "gray"> = {
+  platform: "violet",
+  service: "blue",
+  consumer: "amber",
+};
+
+function roleTone(role?: string): "violet" | "blue" | "amber" | "gray" {
+  if (!role) return "gray";
+  const tier = tierOf(role);
+  return tier ? ROLE_TONE[tier] : "gray";
+}
 
 export function AuditLogsView() {
   const { user } = useAuth();
@@ -106,6 +119,16 @@ export function AuditLogsView() {
       ),
     },
     { key: "userId", header: "User", render: (e) => <span className="font-mono text-xs">{e.userId}</span> },
+    {
+      key: "actorRole",
+      header: "Role",
+      render: (e) =>
+        e.actorRole ? (
+          <Badge tone={roleTone(e.actorRole)}>{e.actorRole}</Badge>
+        ) : (
+          <span className="text-xs text-slate-400">—</span>
+        ),
+    },
     { key: "ipAddress", header: "IP", render: (e) => e.ipAddress ?? "—" },
     {
       key: "changes",
@@ -140,6 +163,15 @@ export function AuditLogsView() {
           options={[
             { value: "", label: "All resources" },
             ...RESOURCE_TYPES.map((r) => ({ value: r, label: r })),
+          ]}
+        />
+        <Select
+          label="Role"
+          value={query.actorRole ?? ""}
+          onChange={(e) => updateFilter({ actorRole: e.target.value || undefined })}
+          options={[
+            { value: "", label: "All roles" },
+            ...ROLES.map((r) => ({ value: r, label: r })),
           ]}
         />
         <Input
