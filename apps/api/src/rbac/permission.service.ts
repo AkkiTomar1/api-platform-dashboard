@@ -7,6 +7,7 @@ import {
 } from "@shared";
 
 const CACHE_KEY = "rbac:permission-map";
+const RBAC_USER_PREFIX = "rbac:user:";
 
 @Injectable()
 export class PermissionService {
@@ -102,5 +103,13 @@ export class PermissionService {
     }
     if (unrestricted) return null;
     return [...ids];
+  }
+
+  userKey(userId: string): string {
+    return `${RBAC_USER_PREFIX}${userId}`;
+  }
+
+  async invalidateUser(userId: string): Promise<void> {
+    await this.redis.del(this.userKey(userId));
   }
 }

@@ -10,10 +10,12 @@ import { createHash, randomBytes } from "node:crypto";
 import * as bcrypt from "bcryptjs";
 import * as jwt from "jsonwebtoken";
 import type {
+  Permission,
   RequestUser,
   RoleAssignmentEntry,
 } from "@shared";
 import { PrismaService } from "../core/prisma/prisma.service";
+import { RedisService } from "../core/redis/redis.service";
 import { PermissionService } from "../rbac/permission.service";
 import { AuditService } from "../modules/audit/audit.service";
 
@@ -33,15 +35,21 @@ export class AuthService {
   private readonly refreshTtlDays: number;
   private readonly issuer: string;
   private readonly privateKey: string;
+  private readonly rbacCacheTtl: number;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly permissionService: PermissionService,
     private readonly audit: AuditService,
+    private readonly redis: RedisService,
     config: ConfigService,
   ) {
     this.accessTtlSeconds = parseSeconds(
       config.get<string>("JWT_ACCESS_EXPIRES_IN") ?? DEFAULT_ACCESS_TTL,
+      900,
+    );
+    this.rbacCacheTtl = parseSeconds(
+      config.get<string>("RBAC_CACHE_TTL") ?? "900",
       900,
     );
     this.refreshTtlDays = parseSeconds(
@@ -171,8 +179,18 @@ export class AuthService {
     if (!user) {
       throw new NotFoundException("User not found");
     }
-    const roles = await this.getRoles(user.id);
-    const permissions = await this.permissionService.getPermissionsForRoles(roles);
+    const userKey = this.permissionService.userKey(user.id);
+    const cached = await this.redis.get<{
+      roles: RoleAssignmentEntry[];
+      permissions: Permission[];
+    }>(userKey);
+    let roles = cached?.roles;
+    let permissions = cached?.permissions;
+    if (!roles || !permissions) {
+      roles = await this.getRoles(user.id);
+      permissions = await this.permissionService.getPermissionsForRoles(roles);
+      await this.redis.set(userKey, { roles, permissions }, this.rbacCacheTtl);
+    }
     return {
       id: user.id,
       email: user.email,
