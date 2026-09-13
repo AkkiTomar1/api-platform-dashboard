@@ -10,6 +10,7 @@ import {
   Modal,
   Table,
   Badge,
+  Switch,
   Spinner,
   Search,
   Plus,
@@ -47,6 +48,7 @@ export function ServicesPage() {
   const [editing, setEditing] = useState<GatewayServiceSummary | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const canCreate = hasPermission(user, "services:create");
   const canUpdate = hasPermission(user, "services:update");
@@ -108,6 +110,20 @@ export function ServicesPage() {
     }
   };
 
+  const handleToggle = async (row: GatewayServiceSummary) => {
+    if (togglingId) return;
+    setTogglingId(row.id);
+    try {
+      await updateService(row.id, { isActive: !row.isActive });
+      toast.success(row.isActive ? "Service deactivated" : "Service activated");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Toggle failed");
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
   const columns: Column<GatewayServiceSummary>[] = [
     {
       key: "name",
@@ -135,9 +151,18 @@ export function ServicesPage() {
       key: "status",
       header: "Status",
       render: (row) => (
-        <Badge tone={row.isActive ? "green" : "red"}>
-          {row.isActive ? "Active" : "Inactive"}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={row.isActive}
+            disabled={!canUpdate || togglingId === row.id}
+            onChange={() => void handleToggle(row)}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={row.isActive ? "Deactivate service" : "Activate service"}
+          />
+          <span className={row.isActive ? "text-sm text-emerald-600" : "text-sm text-slate-500"}>
+            {row.isActive ? "Active" : "Inactive"}
+          </span>
+        </div>
       ),
     },
     {

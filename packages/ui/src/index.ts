@@ -10,5 +10,6 @@ export * from "./Card";
 export * from "./Tabs";
 export * from "./EmptyState";
 export * from "./Spinner";
+export * from "./Switch";
 export * from "./ToastProvider";
 export * from "./Icons";

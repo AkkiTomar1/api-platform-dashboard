@@ -1,41 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  PageHeader,
-  Card,
-  Badge,
-  Spinner,
-  Database,
-  Activity,
-  ShieldCheck,
-  Users,
-} from "@ui";
+import { PageHeader, Card, Spinner } from "@ui";
+import { Activity, PauseCircle, Power, Users } from "lucide-react";
 import { fetchDashboardStats, type DashboardStats } from "@/api/dashboard";
 import { formatDate } from "@/lib/format";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/api/roleAssignments";
-import { PERMISSIONS, tierOf, TIER_ORDER } from "@shared";
-
-const TIER_BADGE: Record<string, { label: string; tone: "violet" | "blue" | "amber" }> = {
-  platform: { label: "Platform", tone: "violet" },
-  service: { label: "Service", tone: "blue" },
-  consumer: { label: "Consumer", tone: "amber" },
-};
-
-function highestTier(roles: string[]): string | null {
-  let best: string | null = null;
-  let bestRank = -1;
-  for (const role of roles) {
-    const tier = tierOf(role);
-    if (!tier) continue;
-    const rank = TIER_ORDER[tier];
-    if (rank > bestRank) {
-      bestRank = rank;
-      best = tier;
-    }
-  }
-  return best;
-}
+import { PERMISSIONS } from "@shared";
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -62,52 +33,42 @@ export function DashboardPage() {
     );
   }
 
-  const healthOk = stats.health?.status === "ok";
-  const healthBadge = {
-    tone: healthOk ? "green" as const : "red" as const,
-    label: `${healthOk ? "Healthy" : "Degraded"} · ${stats.health?.status ?? "unknown"}`,
-  };
-
-  const roles = stats.roles ?? [];
-  const tier = highestTier(roles);
-  const tierBadge = tier ? TIER_BADGE[tier] : null;
-
   return (
     <div>
-      <PageHeader
-        title="Dashboard"
-        description="Platform overview at a glance"
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            {tierBadge && (
-              <Badge tone={tierBadge.tone}>{tierBadge.label}</Badge>
-            )}
-            {roles.slice(0, 3).map((role) => (
-              <Badge key={role} tone="gray">{role}</Badge>
-            ))}
-          </div>
-        }
-      />
+      <PageHeader title="Dashboard" description="Platform overview at a glance" />
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card title="Consumers" subtitle="Registered gateway consumers">
-          <p className="text-3xl font-bold text-slate-900">{stats.consumerCount}</p>
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
+              <Users className="h-5 w-5" />
+            </span>
+            <p className="text-3xl font-bold text-slate-900">{stats.consumerCount}</p>
+          </div>
+          {hasPermission(user, PERMISSIONS.CONSUMERS_READ) && (
+            <Link
+              to="/consumers"
+              className="mt-3 inline-block text-sm font-medium text-brand-600 hover:underline"
+            >
+              View all consumers →
+            </Link>
+          )}
         </Card>
         <Card title="Active Services" subtitle="Enabled gateway services">
-          <p className="text-3xl font-bold text-emerald-600">{stats.activeServices}</p>
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600">
+              <Power className="h-5 w-5" />
+            </span>
+            <p className="text-3xl font-bold text-emerald-600">{stats.activeServices}</p>
+          </div>
         </Card>
         <Card title="Inactive Services" subtitle="Soft-deleted / disabled">
-          <p className="text-3xl font-bold text-slate-500">{stats.inactiveServices}</p>
-        </Card>
-        <Card title="Platform Health" subtitle="DB · Redis · Kong">
-          <div className="flex items-center gap-2">
-            <Badge tone={healthBadge.tone}>{healthBadge.label}</Badge>
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+              <PauseCircle className="h-5 w-5" />
+            </span>
+            <p className="text-3xl font-bold text-slate-500">{stats.inactiveServices}</p>
           </div>
-          <dl className="mt-3 space-y-1 text-xs text-slate-500">
-            <div className="flex justify-between"><dt>Database</dt><dd>{stats.health?.database ?? "?"}</dd></div>
-            <div className="flex justify-between"><dt>Redis</dt><dd>{stats.health?.redis ?? "?"}</dd></div>
-            <div className="flex justify-between"><dt>Kong</dt><dd>{stats.health?.kong ?? "skipped"}</dd></div>
-          </dl>
         </Card>
       </div>
 
@@ -145,40 +106,14 @@ export function DashboardPage() {
           </div>
         </Card>
 
-        <Card title="Quick Links" subtitle="Frequent management tasks">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Link
-              to="/services"
-              className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 hover:border-brand-300 hover:bg-brand-50"
-            >
-              <Database className="h-5 w-5 text-brand-600" />
-              <div>
-                <p className="text-sm font-medium text-slate-800">Services</p>
-                <p className="text-xs text-slate-500">Manage gateway services</p>
-              </div>
-            </Link>
-            {hasPermission(user, PERMISSIONS.CONSUMERS_READ) && (
-              <Link
-                to="/consumers"
-                className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 hover:border-brand-300 hover:bg-brand-50"
-              >
-                <ShieldCheck className="h-5 w-5 text-brand-600" />
-                <div>
-                  <p className="text-sm font-medium text-slate-800">Consumers</p>
-                  <p className="text-xs text-slate-500">Manage API consumers</p>
-                </div>
-              </Link>
-            )}
-          </div>
-        </Card>
-      </div>
-
-      {stats.usersByRole && stats.usersByRole.length > 0 && (
-        <div className="mt-6">
+        {stats.usersByRole && stats.usersByRole.length > 0 && (
           <Card title="Users by Role" subtitle="How platform roles are distributed">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {stats.usersByRole.map((row) => (
-                <div key={row.role} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                <div
+                  key={row.role}
+                  className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3"
+                >
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-slate-400" />
                     <span className="text-sm font-medium text-slate-700">{row.role}</span>
@@ -187,9 +122,14 @@ export function DashboardPage() {
                 </div>
               ))}
             </div>
+            <div className="mt-4">
+              <Link to="/admin" className="text-sm font-medium text-brand-600 hover:underline">
+                View all roles →
+              </Link>
+            </div>
           </Card>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
