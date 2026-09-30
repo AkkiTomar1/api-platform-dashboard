@@ -48,30 +48,30 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
         onClick={closeOnBackdrop ? onClose : undefined}
       />
       <div
         role="dialog"
         aria-modal="true"
         className={cn(
-          "relative w-full rounded-2xl bg-white shadow-2xl",
+          "relative w-full rounded-2xl border border-hairline bg-surface-card shadow-2xl shadow-slate-950/20",
           sizeClasses[size],
         )}
       >
-        <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
+        <div className="flex items-start justify-between border-b border-hairline px-6 py-4">
           <div>
             {title ? (
-              <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+              <h2 className="text-lg font-semibold text-ink-strong">{title}</h2>
             ) : null}
             {description ? (
-              <p className="mt-1 text-sm text-slate-500">{description}</p>
+              <p className="mt-1 text-sm text-ink-soft">{description}</p>
             ) : null}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-md p-1 text-ink-faint transition-colors hover:bg-surface-muted hover:text-ink"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -79,7 +79,7 @@ export function Modal({
         </div>
         <div className="max-h-[70vh] overflow-y-auto px-6 py-4">{children}</div>
         {footer ? (
-          <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
+          <div className="flex items-center justify-end gap-3 border-t border-hairline px-6 py-4">
             {footer}
           </div>
         ) : null}

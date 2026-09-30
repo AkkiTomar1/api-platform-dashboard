@@ -1,5 +1,6 @@
 import { forwardRef, type SelectHTMLAttributes } from "react";
 import { cn } from "./cn";
+import { FormField } from "./FormField";
 
 export interface SelectOption {
   value: string;
@@ -9,29 +10,25 @@ export interface SelectOption {
 export interface SelectProps
   extends Omit<SelectHTMLAttributes<HTMLSelectElement>, "children"> {
   label?: string;
+  required?: boolean;
   error?: string;
   options?: SelectOption[];
   children?: React.ReactNode;
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
-  { label, error, id, className, options, children, ...props },
+  { label, required, error, id, className, options, children, ...props },
   ref,
 ) {
   const selectId = id ?? (label ? label.toLowerCase().replace(/\s+/g, "-") : undefined);
   return (
-    <div className="flex flex-col gap-1.5">
-      {label ? (
-        <label htmlFor={selectId} className="text-sm font-medium text-slate-700">
-          {label}
-        </label>
-      ) : null}
+    <FormField label={label} htmlFor={selectId} required={required} error={error}>
       <select
         ref={ref}
         id={selectId}
         className={cn(
-          "h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900",
-          "focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200",
+          "h-10 w-full cursor-pointer rounded-lg border border-hairline bg-surface-card px-3 text-sm text-ink-strong",
+          "focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/25",
           error ? "border-red-500" : "",
           className,
         )}
@@ -45,7 +42,6 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
             ))
           : children}
       </select>
-      {error ? <p className="text-xs text-red-600">{error}</p> : null}
-    </div>
+    </FormField>
   );
 });

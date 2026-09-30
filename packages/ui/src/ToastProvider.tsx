@@ -8,7 +8,7 @@ export function ToastProvider() {
       position="top-right"
       toastOptions={{
         className:
-          "rounded-lg border border-slate-200 bg-white text-sm text-slate-800 shadow-lg",
+          "rounded-lg border border-hairline bg-surface-card text-sm text-ink shadow-lg",
         success: { iconTheme: { primary: "#7c3aed", secondary: "#fff" } },
       }}
     />
