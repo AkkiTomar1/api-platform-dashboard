@@ -17,7 +17,6 @@ import type {
 import { PrismaService } from "../core/prisma/prisma.service";
 import { RedisService } from "../core/redis/redis.service";
 import { PermissionService } from "../rbac/permission.service";
-import { AuditService } from "../modules/audit/audit.service";
 
 export interface AuthResult {
   accessToken: string;
@@ -40,7 +39,6 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly permissionService: PermissionService,
-    private readonly audit: AuditService,
     private readonly redis: RedisService,
     config: ConfigService,
   ) {
@@ -76,7 +74,7 @@ export class AuthService {
     }
   }
 
-  async login(email: string, password: string, ip?: string) {
+  async login(email: string, password: string) {
     const user = await this.prisma.user.findUnique({
       where: { email: email.toLowerCase() },
     });
@@ -86,15 +84,6 @@ export class AuthService {
 
     const requestUser = await this.buildRequestUser(user.id);
     const tokens = await this.issueSession(user.id);
-
-    this.audit.record({
-      action: "LOGIN",
-      actor: this.actorName(requestUser),
-      ipAddress: ip,
-      resourceType: "user",
-      resourceName: requestUser.email || `(user ${user.id})`,
-      userId: user.id,
-    });
 
     return { ...tokens, user: requestUser };
   }
@@ -118,7 +107,7 @@ export class AuthService {
     return { ...tokens, user: requestUser };
   }
 
-  async logout(refreshToken: string, ip?: string) {
+  async logout(refreshToken: string) {
     const tokenHash = this.hashToken(refreshToken);
     const stored = await this.prisma.refreshToken.findUnique({
       where: { tokenHash },
@@ -128,20 +117,6 @@ export class AuthService {
         where: { id: stored.id },
         data: { revokedAt: new Date() },
       });
-
-      const user = await this.prisma.user.findUnique({
-        where: { id: stored.userId },
-      });
-      if (user) {
-        this.audit.record({
-          action: "LOGOUT",
-          actor: user.email || `(user ${user.id})`,
-          ipAddress: ip,
-          resourceType: "user",
-          resourceName: user.email || `(user ${user.id})`,
-          userId: user.id,
-        });
-      }
     }
     return { ok: true };
   }
@@ -218,10 +193,6 @@ export class AuthService {
 
   private hashToken(token: string): string {
     return createHash("sha256").update(token).digest("hex");
-  }
-
-  private actorName(user: RequestUser): string {
-    return user.email || user.username || `(user ${user.id})`;
   }
 }
 

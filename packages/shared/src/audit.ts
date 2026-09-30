@@ -2,8 +2,6 @@ export type AuditAction =
   | "CREATE"
   | "UPDATE"
   | "DELETE"
-  | "LOGIN"
-  | "LOGOUT"
   | "ASSIGN"
   | "UNASSIGN"
   | "REVOKE"

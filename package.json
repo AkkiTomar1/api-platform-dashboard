@@ -17,7 +17,10 @@
     "prisma:deploy": "bun run --cwd apps/api prisma:deploy",
     "prisma:seed": "bun run --cwd apps/api prisma:seed",
     "prisma:studio": "bun run --cwd apps/api prisma:studio",
-    "typecheck": "bun run --cwd apps/api typecheck && bun run --cwd apps/web typecheck"
+    "typecheck": "bun run --cwd apps/api typecheck && bun run --cwd apps/web typecheck",
+    "kong:up": "bun scripts/kong.mjs up -d",
+    "kong:down": "bun scripts/kong.mjs down",
+    "kong:bootstrap": "bun scripts/kong.mjs run --rm kong kong migrations bootstrap"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.4.0",

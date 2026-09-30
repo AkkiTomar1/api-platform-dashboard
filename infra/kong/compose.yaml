@@ -2,6 +2,7 @@ services:
   kong-db:
     image: postgres:13-alpine
     container_name: kong-db
+    restart: unless-stopped
     environment:
       POSTGRES_DB: kong
       POSTGRES_USER: kong
@@ -17,6 +18,7 @@ services:
   kong:
     image: kong/kong:3.9
     container_name: kong
+    restart: unless-stopped
     depends_on:
       kong-db:
         condition: service_healthy

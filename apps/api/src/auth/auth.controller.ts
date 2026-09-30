@@ -1,5 +1,4 @@
-import { Body, Controller, Get, Post, Req } from "@nestjs/common";
-import type { Request } from "express";
+import { Body, Controller, Get, Post } from "@nestjs/common";
 import { z } from "zod";
 import { CurrentUser } from "../core/decorators/current-user.decorator";
 import { Public } from "../core/decorators/public.decorator";
@@ -17,9 +16,8 @@ export class AuthController {
   async login(
     @Body(new zodValidationPipe(loginBodySchema))
     body: z.infer<typeof loginBodySchema>,
-    @Req() req: Request,
   ) {
-    return this.authService.login(body.email, body.password, req.ip);
+    return this.authService.login(body.email, body.password);
   }
 
   @Public()
@@ -36,9 +34,8 @@ export class AuthController {
   async logout(
     @Body(new zodValidationPipe(refreshBodySchema))
     body: { refreshToken: string },
-    @Req() req: Request,
   ) {
-    await this.authService.logout(body.refreshToken, req.ip);
+    await this.authService.logout(body.refreshToken);
     return { ok: true };
   }
 
