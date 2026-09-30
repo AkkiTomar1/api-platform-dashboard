@@ -20,6 +20,7 @@ export interface AuditListResult {
   total: number;
   page: number;
   pageSize: number;
+  summary: { creates: number; updates: number; deletes: number; others: number };
 }
 
 export interface AuditListQuery {

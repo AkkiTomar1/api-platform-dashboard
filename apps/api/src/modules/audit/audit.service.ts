@@ -63,7 +63,13 @@ export class AuditService {
   async list(
     query: AuditListQuery,
     user: RequestUser,
-  ): Promise<{ data: unknown[]; total: number; page: number; pageSize: number }> {
+  ): Promise<{
+    data: unknown[];
+    total: number;
+    page: number;
+    pageSize: number;
+    summary: { creates: number; updates: number; deletes: number; others: number };
+  }> {
     const page = safeInt(query.page, 1);
     const pageSize = Math.min(safeInt(query.pageSize, 20), 100);
     const limit = Math.min(safeInt(query.limit, pageSize), AuditService.MAX_LIMIT);
@@ -83,9 +89,15 @@ export class AuditService {
     const canSeeConsumers = user.permissions.includes(PERMISSIONS.CONSUMERS_READ);
     const canSeeCredentials = user.permissions.includes(PERMISSIONS.CREDENTIALS_READ);
 
-    if (owned && owned.length === 0 && !canSeeConsumers && !canSeeCredentials) {
-      return { data: [], total: 0, page, pageSize };
-    }
+if (owned && owned.length === 0 && !canSeeConsumers && !canSeeCredentials) {
+        return {
+          data: [],
+          total: 0,
+          page,
+          pageSize,
+          summary: { creates: 0, updates: 0, deletes: 0, others: 0 },
+        };
+      }
 
     if (query.action) {
       where.action = { equals: query.action };
@@ -103,10 +115,16 @@ export class AuditService {
         select: { userId: true },
         distinct: ["userId"],
       });
-      const userIds = matched.map((r) => r.userId);
-      if (userIds.length === 0) {
-        return { data: [], total: 0, page, pageSize };
-      }
+const userIds = matched.map((r) => r.userId);
+        if (userIds.length === 0) {
+          return {
+            data: [],
+            total: 0,
+            page,
+            pageSize,
+            summary: { creates: 0, updates: 0, deletes: 0, others: 0 },
+          };
+        }
       andClauses.push({ userId: { in: userIds } });
     }
     const createdAt: Prisma.DateTimeFilter = {};
@@ -154,7 +172,7 @@ export class AuditService {
       where.OR = orClauses;
     }
 
-    const [total, rows] = await this.prisma.$transaction([
+    const [total, rows, creates, updates, deletes] = await this.prisma.$transaction([
       this.prisma.auditLog.count({ where }),
       this.prisma.auditLog.findMany({
         where,
@@ -162,7 +180,19 @@ export class AuditService {
         take: limit,
         skip: (page - 1) * limit,
       }),
+      this.prisma.auditLog.count({ where: { ...where, action: "CREATE" } }),
+      this.prisma.auditLog.count({ where: { ...where, action: "UPDATE" } }),
+      this.prisma.auditLog.count({
+        where: { ...where, action: { in: ["DELETE", "REVOKE", "UNASSIGN"] } },
+      }),
     ]);
+
+    const summary = {
+      creates,
+      updates,
+      deletes,
+      others: Math.max(0, total - creates - updates - deletes),
+    };
 
     const resolved = await this.resolveNames(rows);
     return {
@@ -170,6 +200,7 @@ export class AuditService {
       total,
       page,
       pageSize: limit,
+      summary,
     };
   }
 

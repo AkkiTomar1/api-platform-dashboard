@@ -6,10 +6,14 @@ import {
   Button,
   Table,
   Badge,
-  Spinner,
+  Card,
+  SummaryCard,
+  NoAccessCard,
+  SearchInput,
   toast,
   RefreshCw,
 } from "@ui";
+import { CircleCheck, CircleX, PenLine, ScrollText } from "lucide-react";
 import type { Column } from "@ui";
 import { listAuditLogs, type AuditLogEntry, type AuditListQuery } from "@/api/audit";
 import { formatDate } from "@/lib/format";
@@ -17,6 +21,8 @@ import { DiffModal } from "./components/DiffModal";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/api/roleAssignments";
 import { ROLES, tierOf } from "@shared";
+import { QueryState } from "@/components/QueryState";
+import { usePageTitle } from "@/lib/use-page-title";
 
 const ACTIONS = [
   "CREATE",
@@ -25,8 +31,6 @@ const ACTIONS = [
   "ASSIGN",
   "UNASSIGN",
   "REVOKE",
-  "LOGIN",
-  "LOGOUT",
 ];
 
 const RESOURCE_TYPES = [
@@ -53,22 +57,35 @@ function roleTone(role?: string): "violet" | "blue" | "amber" | "gray" {
 }
 
 export function AuditLogsView() {
+  usePageTitle("Audit Logs");
   const { user } = useAuth();
   const canRead = hasPermission(user, "audit:read");
   const [data, setData] = useState<AuditLogEntry[]>([]);
   const [total, setTotal] = useState(0);
+  const [summary, setSummary] = useState({
+    creates: 0,
+    updates: 0,
+    deletes: 0,
+    others: 0,
+  });
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
+  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState<AuditListQuery>({ page: 1, pageSize: 20 });
   const [diffTarget, setDiffTarget] = useState<AuditLogEntry | null>(null);
 
+  const page = query.page ?? 1;
+  const pageSize = query.pageSize ?? 20;
+
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await listAuditLogs(query);
       setData(res.data);
       setTotal(res.total);
-    } catch {
+      setSummary(res.summary);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load audit logs");
       toast.error("Failed to load audit logs");
     } finally {
       setLoading(false);
@@ -81,8 +98,12 @@ export function AuditLogsView() {
 
   if (!canRead) {
     return (
-      <div className="text-sm text-red-600">
-        You do not have permission to view audit logs.
+      <div>
+        <PageHeader title="Audit Logs" description="Field-level change history across the platform" />
+        <NoAccessCard
+          title="No access"
+          description="You don't have permission to view audit logs."
+        />
       </div>
     );
   }
@@ -114,7 +135,7 @@ export function AuditLogsView() {
       render: (e) => (
         <div>
           <Badge tone="gray">{e.resourceType}</Badge>
-          <p className="mt-0.5 truncate text-xs text-slate-500 max-w-52">{e.resourceName}</p>
+          <p className="mt-0.5 max-w-52 truncate text-xs text-ink-soft">{e.resourceName}</p>
         </div>
       ),
     },
@@ -126,7 +147,7 @@ export function AuditLogsView() {
         e.actorRole ? (
           <Badge tone={roleTone(e.actorRole)}>{e.actorRole}</Badge>
         ) : (
-          <span className="text-xs text-slate-400">—</span>
+          <span className="text-xs text-ink-faint">—</span>
         ),
     },
     { key: "ipAddress", header: "IP", render: (e) => e.ipAddress ?? "—" },
@@ -137,7 +158,7 @@ export function AuditLogsView() {
         <button
           type="button"
           onClick={() => setDiffTarget(e)}
-          className="text-sm font-medium text-brand-600 hover:underline"
+          className="text-sm font-medium text-brand-600 transition-colors hover:text-brand-700"
         >
           View diff
         </button>
@@ -149,93 +170,128 @@ export function AuditLogsView() {
     <div>
       <PageHeader title="Audit Logs" description="Field-level change history across the platform" />
 
-      <div className="mb-4 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Select
-          label="Action"
-          value={query.action ?? ""}
-          onChange={(e) => updateFilter({ action: e.target.value || undefined })}
-          options={[{ value: "", label: "All actions" }, ...ACTIONS.map((a) => ({ value: a, label: a }))]}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <SummaryCard
+          icon={<ScrollText className="h-5 w-5" />}
+          label="Total events"
+          value={summary.creates + summary.updates + summary.deletes + summary.others}
         />
-        <Select
-          label="Resource type"
-          value={query.userType ?? ""}
-          onChange={(e) => updateFilter({ userType: e.target.value || undefined })}
-          options={[
-            { value: "", label: "All resources" },
-            ...RESOURCE_TYPES.map((r) => ({ value: r, label: r })),
-          ]}
+        <SummaryCard
+          icon={<CircleCheck className="h-5 w-5" />}
+          label="Creates"
+          value={summary.creates}
+          variant="success"
         />
-        <Select
-          label="Role"
-          value={query.actorRole ?? ""}
-          onChange={(e) => updateFilter({ actorRole: e.target.value || undefined })}
-          options={[
-            { value: "", label: "All roles" },
-            ...ROLES.map((r) => ({ value: r, label: r })),
-          ]}
+        <SummaryCard
+          icon={<PenLine className="h-5 w-5" />}
+          label="Updates"
+          value={summary.updates}
         />
-        <Input
-          label="From"
-          type="datetime-local"
-          value={query.dateFrom ?? ""}
-          onChange={(e) => updateFilter({ dateFrom: e.target.value || undefined })}
-        />
-        <Input
-          label="To"
-          type="datetime-local"
-          value={query.dateTo ?? ""}
-          onChange={(e) => updateFilter({ dateTo: e.target.value || undefined })}
+        <SummaryCard
+          icon={<CircleX className="h-5 w-5" />}
+          label="Deletes"
+          value={summary.deletes}
+          variant="error"
         />
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Input
-          className="w-64"
-          placeholder="Filter by user ID"
-          value={query.userId ?? ""}
-          onChange={(e) => updateFilter({ userId: e.target.value || undefined })}
-        />
-        <Input
-          className="w-64"
-          placeholder="Service ID"
-          value={query.serviceId ?? ""}
-          onChange={(e) => updateFilter({ serviceId: e.target.value || undefined })}
-        />
-        <Button
-          variant="outline"
-          leftIcon={<RefreshCw className="h-4 w-4" />}
-          onClick={() => void load()}
-        >
-          Refresh
-        </Button>
-      </div>
-
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <Spinner size="lg" />
-        </div>
-      ) : (
-        <>
-          <Table
-            columns={columns}
-            rows={data}
-            rowKey={(e) => e.id}
-            onRowClick={(e) => setDiffTarget(e)}
+      <Card className="mt-6" title="Filters" subtitle="Narrow the audit trail">
+        <div className="flex flex-wrap gap-3">
+          <Select
+            className="w-full sm:w-48"
+            label="Action"
+            value={query.action ?? ""}
+            onChange={(e) => updateFilter({ action: e.target.value || undefined })}
+            options={[{ value: "", label: "All actions" }, ...ACTIONS.map((a) => ({ value: a, label: a }))]}
           />
-          <div className="mt-4 flex items-center justify-between">
-            <p className="text-sm text-slate-500">{total} events</p>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => { setPage(page - 1); setQuery((q) => ({ ...q, page: page - 1 })); }}>
-                Prev
-              </Button>
-              <span className="flex items-center px-2 text-sm text-slate-600">Page {page}</span>
-              <Button variant="outline" size="sm" disabled={page * 20 >= total} onClick={() => { setPage(page + 1); setQuery((q) => ({ ...q, page: page + 1 })); }}>
-                Next
-              </Button>
-            </div>
+          <Select
+            className="w-full sm:w-48"
+            label="Resource type"
+            value={query.userType ?? ""}
+            onChange={(e) => updateFilter({ userType: e.target.value || undefined })}
+            options={[
+              { value: "", label: "All resources" },
+              ...RESOURCE_TYPES.map((r) => ({ value: r, label: r })),
+            ]}
+          />
+          <Select
+            className="w-full sm:w-48"
+            label="Role"
+            value={query.actorRole ?? ""}
+            onChange={(e) => updateFilter({ actorRole: e.target.value || undefined })}
+            options={[
+              { value: "", label: "All roles" },
+              ...ROLES.map((r) => ({ value: r, label: r })),
+            ]}
+          />
+          <div className="flex flex-wrap items-end gap-3">
+            <Input
+              className="w-44"
+              label="From"
+              type="datetime-local"
+              value={query.dateFrom ?? ""}
+              onChange={(e) => updateFilter({ dateFrom: e.target.value || undefined })}
+            />
+            <Input
+              className="w-44"
+              label="To"
+              type="datetime-local"
+              value={query.dateTo ?? ""}
+              onChange={(e) => updateFilter({ dateTo: e.target.value || undefined })}
+            />
           </div>
-        </>
-      )}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <SearchInput
+            placeholder="Filter by user ID"
+            value={query.userId ?? ""}
+            onChange={(e) => updateFilter({ userId: e.target.value || undefined })}
+          />
+          <SearchInput
+            placeholder="Service ID"
+            value={query.serviceId ?? ""}
+            onChange={(e) => updateFilter({ serviceId: e.target.value || undefined })}
+          />
+          <Button
+            variant="outline"
+            leftIcon={<RefreshCw className="h-4 w-4" />}
+            onClick={() => void load()}
+          >
+            Refresh
+          </Button>
+        </div>
+      </Card>
+
+      <QueryState loading={loading} error={error} onRetry={load}>
+        <Table
+          columns={columns}
+          rows={data}
+          rowKey={(e) => e.id}
+          onRowClick={(e) => setDiffTarget(e)}
+        />
+        <div className="mt-4 flex items-center justify-between">
+          <p className="text-sm text-ink-soft">{total} events</p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => updateFilter({ page: page - 1 })}
+            >
+              Prev
+            </Button>
+            <span className="flex items-center px-2 text-sm text-ink">Page {page}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page * pageSize >= total}
+              onClick={() => updateFilter({ page: page + 1 })}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      </QueryState>
 
       <DiffModal entry={diffTarget} onClose={() => setDiffTarget(null)} />
     </div>
