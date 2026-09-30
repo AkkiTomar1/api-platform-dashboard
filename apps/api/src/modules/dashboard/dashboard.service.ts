@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PERMISSIONS, tierOf, type Permission, type Tier } from "@shared";
 import { PrismaService } from "../../core/prisma/prisma.service";
+import { KongClient } from "../../core/kong/kong-client";
 import { HealthService } from "../health/health.service";
 import { PermissionService } from "../../rbac/permission.service";
 
@@ -11,6 +12,7 @@ export class DashboardService {
     private readonly prisma: PrismaService,
     private readonly health: HealthService,
     private readonly permissionService: PermissionService,
+    private readonly kong: KongClient,
   ) {}
 
   async stats(user: {
@@ -92,6 +94,15 @@ export class DashboardService {
       };
     }
 
+    const [routeCount, pluginCount] = await Promise.all([
+      user.permissions.includes(PERMISSIONS.ROUTES_READ)
+        ? this.countCollection("routes").catch(() => null)
+        : Promise.resolve(null),
+      user.permissions.includes(PERMISSIONS.PLUGINS_READ)
+        ? this.countCollection("plugins").catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
     const tiers = new Set<Tier>();
     for (const r of user.roles) {
       const tier = tierOf(r.role);
@@ -102,11 +113,27 @@ export class DashboardService {
       consumerCount,
       activeServices,
       inactiveServices,
+      routeCount,
+      pluginCount,
       health,
       recentAudit,
       tier: [...tiers],
       roles: user.roles.map((r) => r.role),
       usersByRole: usersByRole.map((row) => ({ role: row.role, count: row._count.role })),
     };
+  }
+
+  private async countCollection(resource: "routes" | "plugins"): Promise<number> {
+    let total = 0;
+    let offset: string | undefined;
+    do {
+      const query = offset ? `&offset=${encodeURIComponent(offset)}` : "";
+      const page = await this.kong.get<{ data?: unknown[]; offset?: string }>(
+        `/${resource}?size=200${query}`,
+      );
+      total += (page.data ?? []).length;
+      offset = page.offset;
+    } while (offset);
+    return total;
   }
 }

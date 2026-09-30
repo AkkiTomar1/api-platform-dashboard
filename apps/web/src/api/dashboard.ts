@@ -5,6 +5,8 @@ export interface DashboardStats {
   consumerCount: number;
   activeServices: number;
   inactiveServices: number;
+  routeCount: number | null;
+  pluginCount: number | null;
   health: {
     status: string;
     database?: string;
@@ -28,6 +30,19 @@ export interface DashboardStats {
 
 export async function fetchDashboardStats(): Promise<DashboardStats> {
   const res = await apiClient.get<DashboardStats>("/dashboard/stats");
+  return res.data;
+}
+
+export interface HealthCheck {
+  status: string;
+  database?: string;
+  redis?: string;
+  kong?: string;
+  degraded?: boolean;
+}
+
+export async function getHealth(): Promise<HealthCheck> {
+  const res = await apiClient.get<HealthCheck>("/health");
   return res.data;
 }
 
