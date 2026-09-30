@@ -32,13 +32,21 @@ export interface ConsumerDetail {
   }>;
 }
 
-export async function listConsumers(): Promise<{
+export async function listConsumers(query: {
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<{
   data: ConsumerSummary[];
   total: number;
+  page: number;
+  pageSize: number;
 }> {
-  const res = await apiClient.get<{ data: ConsumerSummary[]; total: number }>(
-    "/consumers",
-  );
+  const res = await apiClient.get<{
+    data: ConsumerSummary[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }>("/consumers", { params: query });
   return res.data;
 }
 

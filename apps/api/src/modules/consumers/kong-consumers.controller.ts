@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
 } from "@nestjs/common";
 import type { Request } from "express";
@@ -27,8 +28,15 @@ export class KongConsumersController {
 
   @Get()
   @RequiredPermissions(PERMISSIONS.CONSUMERS_READ)
-  list(@CurrentUser() user: RequestUser) {
-    return this.consumers.list(user);
+  list(
+    @CurrentUser() user: RequestUser,
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string,
+  ) {
+    return this.consumers.list(user, {
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
   }
 
   @Get(":id")

@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   PageHeader,
   Button,
   Table,
+  DataTable,
   Badge,
-  Spinner,
   toast,
   Plus,
   Pencil,
   Trash2,
   EyeOff,
-  Modal,
 } from "@ui";
 import type { Column } from "@ui";
 import {
@@ -32,6 +32,10 @@ import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/api/roleAssignments";
 import { ConsumerFormModal } from "./ConsumerFormModal";
 import { PluginModal, type PluginModalSubmit } from "@/features/plugins/PluginModal";
+import { QueryState } from "@/components/QueryState";
+import { ConfirmDialog } from "@ui";
+import { Modal } from "@ui";
+import { usePageTitle } from "@/lib/use-page-title";
 
 interface GenerateState {
   consumerId: string;
@@ -39,9 +43,13 @@ interface GenerateState {
 }
 
 export function ConsumersPage() {
+  usePageTitle("Consumers");
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [data, setData] = useState<ConsumerSummary[]>([]);
+  const [pagination, setPagination] = useState({ page: 1, pageSize: 15, total: 0 });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [generate, setGenerate] = useState<GenerateState | null>(null);
@@ -51,6 +59,8 @@ export function ConsumersPage() {
   const [pluginOpen, setPluginOpen] = useState(false);
   const [pluginEditing, setPluginEditing] = useState<KongPlugin | null>(null);
   const [pluginsSubmitting, setPluginsSubmitting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const canCreate = hasPermission(user, "consumers:create");
   const canDelete = hasPermission(user, "consumers:delete");
@@ -62,15 +72,21 @@ export function ConsumersPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const res = await listConsumers();
+      const res = await listConsumers({
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+      });
       setData(res.data);
-    } catch {
+      setPagination((p) => ({ ...p, total: res.total }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load consumers");
       toast.error("Failed to load consumers");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pagination.page, pagination.pageSize]);
 
   useEffect(() => {
     void load();
@@ -145,13 +161,18 @@ export function ConsumersPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
     try {
-      await deleteConsumer(id);
+      await deleteConsumer(confirmDelete.id);
       toast.success("Consumer deleted (revoked)");
+      setConfirmDelete(null);
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -175,7 +196,7 @@ export function ConsumersPage() {
       render: (c) => (
         <div className="flex flex-wrap gap-1">
           {c.services.length === 0 ? (
-            <span className="text-xs text-slate-400">none</span>
+            <span className="text-xs text-ink-faint">none</span>
           ) : (
             c.services.map((s) => (
               <Badge key={s.serviceId} tone={s.status === "ACTIVE" ? "green" : "red"}>
@@ -222,9 +243,9 @@ export function ConsumersPage() {
           <Button
             variant="ghost"
             size="sm"
-            className="text-red-600 hover:bg-red-50"
+            className="text-red-500 hover:bg-red-500/10 hover:text-red-600"
             leftIcon={<Trash2 className="h-3.5 w-3.5" />}
-            onClick={() => void handleDelete(c.id)}
+            onClick={() => setConfirmDelete({ id: c.id, name: c.username ?? c.customId ?? c.id })}
           >
             Delete
           </Button>
@@ -249,13 +270,47 @@ export function ConsumersPage() {
         }
       />
 
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <Spinner size="lg" />
+      <QueryState loading={loading} error={error} onRetry={load}>
+        <DataTable
+          columns={columns}
+          rows={data}
+          rowKey={(c) => c.id}
+          lastHeaderAlign="right"
+          onRowClick={(c) => {
+            navigate(`/consumers/${c.id}`);
+          }}
+        />
+        <div className="mt-4 flex items-center justify-between">
+          <p className="text-sm text-ink-soft">
+            {pagination.total} consumer{pagination.total === 1 ? "" : "s"}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pagination.page <= 1}
+              onClick={() =>
+                setPagination((p) => ({ ...p, page: p.page - 1 }))
+              }
+            >
+              Prev
+            </Button>
+            <span className="flex items-center px-2 text-sm text-ink">
+              Page {pagination.page}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pagination.page * pagination.pageSize >= pagination.total}
+              onClick={() =>
+                setPagination((p) => ({ ...p, page: p.page + 1 }))
+              }
+            >
+              Next
+            </Button>
+          </div>
         </div>
-      ) : (
-        <Table columns={columns} rows={data} rowKey={(c) => c.id} />
-      )}
+      </QueryState>
 
       <ConsumerFormModal
         open={open}
@@ -272,26 +327,28 @@ export function ConsumersPage() {
       >
         {generate ? (
           <div className="space-y-3">
-            <p className="text-sm text-slate-600">Consumer: {generate.consumerId}</p>
+            <p className="text-sm text-ink">Consumer: {generate.consumerId}</p>
             {generate.secret !== null ? (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-500/30 dark:bg-emerald-500/10">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-emerald-800">Secret key</p>
+                  <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                    Secret key
+                  </p>
                   <button
                     type="button"
-                    className="text-emerald-700"
+                    className="text-emerald-600 dark:text-emerald-400"
                     onClick={() => setGenerate((g) => (g ? { ...g, secret: null } : null))}
                     aria-label="Hide secret"
                   >
                     <EyeOff className="h-4 w-4" />
                   </button>
                 </div>
-                <code className="mt-1 block break-all rounded bg-emerald-100 px-2 py-1 font-mono text-xs text-emerald-900">
+                <code className="mt-1 block break-all rounded bg-emerald-100 px-2 py-1 font-mono text-xs text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200">
                   {generate.secret}
                 </code>
               </div>
             ) : (
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-ink-soft">
                 The secret key is only ever shown once. You cannot reveal it again.
               </p>
             )}
@@ -327,11 +384,11 @@ export function ConsumersPage() {
           </div>
           {pluginsLoading ? (
             <div className="flex justify-center py-12">
-              <Spinner size="lg" />
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
             </div>
           ) : consumerPlugins.length === 0 ? (
-            <div className="rounded-lg border border-slate-200 p-8 text-center">
-              <p className="text-sm text-slate-500">
+            <div className="rounded-lg border border-hairline p-8 text-center">
+              <p className="text-sm text-ink-soft">
                 No plugins are enabled on this consumer.
               </p>
             </div>
@@ -356,7 +413,7 @@ export function ConsumersPage() {
                   key: "config",
                   header: "Config keys",
                   render: (p) => (
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs text-ink-soft">
                       {Object.keys(p.config ?? {}).join(", ") || "—"}
                     </span>
                   ),
@@ -383,7 +440,7 @@ export function ConsumersPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-red-600 hover:bg-red-50"
+                          className="text-red-500 hover:bg-red-500/10 hover:text-red-600"
                           leftIcon={<Trash2 className="h-3.5 w-3.5" />}
                           onClick={() => void handlePluginDelete(p)}
                         >
@@ -413,6 +470,23 @@ export function ConsumersPage() {
           />
         </div>
       </Modal>
+
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Delete consumer"
+        description="This revokes the consumer's credentials. The action cannot be undone."
+        confirmLabel="Delete"
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(null)}
+      >
+        {confirmDelete ? (
+          <p className="text-sm text-ink">
+            Are you sure you want to delete{" "}
+            <span className="font-semibold text-ink-strong">{confirmDelete.name}</span>?
+          </p>
+        ) : null}
+      </ConfirmDialog>
     </div>
   );
 }

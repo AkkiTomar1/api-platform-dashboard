@@ -30,7 +30,9 @@ export class KongConsumersService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(user: RequestUser) {
+  async list(user: RequestUser, query: { page?: number; pageSize?: number }) {
+    const page = Math.max(1, Number(query.page ?? 1) || 1);
+    const pageSize = Math.min(Math.max(1, Number(query.pageSize ?? 20) || 20), 100);
     const consumers = await this.prisma.kongConsumer.findMany({
       orderBy: { createdAt: "desc" },
       include: {
@@ -54,8 +56,11 @@ export class KongConsumersService {
             c.serviceConsumers.some((sc) => owned.includes(sc.serviceId)),
           );
 
+    const total = filtered.length;
+    const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+
     return {
-      data: filtered.map((c) => ({
+      data: paged.map((c) => ({
         id: c.id,
         username: c.username,
         customId: c.customId,
@@ -66,7 +71,9 @@ export class KongConsumersService {
           status: sc.status,
         })),
       })),
-      total: filtered.length,
+      total,
+      page,
+      pageSize,
     };
   }
 
