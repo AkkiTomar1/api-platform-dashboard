@@ -1,9 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+import { RouterProvider } from "react-router-dom";
 import { ToastProvider } from "@ui";
 import { AuthProvider } from "@/lib/auth-context";
-import App from "@/App";
+import { ThemeProvider } from "@/lib/theme";
+import { router } from "@/router";
 import "@/styles/index.css";
 
 function disableNumberScroll() {
@@ -26,11 +27,11 @@ disableNumberScroll();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
+    <AuthProvider>
+      <ThemeProvider>
         <ToastProvider />
-        <App />
-      </AuthProvider>
-    </BrowserRouter>
+        <RouterProvider router={router} />
+      </ThemeProvider>
+    </AuthProvider>
   </StrictMode>,
 );
