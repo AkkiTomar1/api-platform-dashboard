@@ -15,6 +15,7 @@ export interface KongRoute {
   protocols?: string[];
   strip_path?: boolean;
   preserve_host?: boolean;
+  regex_priority?: number;
   service?: { id?: string } | null;
   created_at?: number;
 }

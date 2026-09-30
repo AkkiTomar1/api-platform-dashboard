@@ -17,6 +17,7 @@ import { z } from "zod";
 import type { RequestUser } from "@shared";
 import { zodValidationPipe } from "../../core/pipes/zod.pipe";
 import { KongServicesService } from "./kong-services.service";
+import type { ServiceProtocol } from "@shared";
 
 type ServiceUpdateBody = z.infer<typeof serviceUpdateSchema>;
 
@@ -65,7 +66,12 @@ export class KongServicesController {
       host?: string;
       path?: string;
       port?: number;
-      protocol?: "http" | "https";
+      protocol?: ServiceProtocol;
+      ownerContact?: string;
+      connectTimeout?: number;
+      writeTimeout?: number;
+      readTimeout?: number;
+      retries?: number;
     },
     @CurrentUser() user: RequestUser,
     @Req() req: Request,
@@ -81,6 +87,11 @@ export class KongServicesController {
         path: body.path ?? "/",
         port: body.port ?? 80,
         protocol: body.protocol ?? "http",
+        ownerContact: body.ownerContact,
+        connectTimeout: body.connectTimeout,
+        writeTimeout: body.writeTimeout,
+        readTimeout: body.readTimeout,
+        retries: body.retries,
       },
       user,
       req.ip,

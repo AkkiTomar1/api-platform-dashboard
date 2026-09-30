@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import type { RequestUser } from "@shared";
+import type { RequestUser, ServiceProtocol } from "@shared";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { KongClient } from "../../core/kong/kong-client";
 import { PermissionService } from "../../rbac/permission.service";
@@ -19,7 +19,12 @@ interface CreateInput {
   host: string;
   path: string;
   port: number;
-  protocol: "http" | "https";
+  protocol: ServiceProtocol;
+  ownerContact?: string;
+  connectTimeout?: number;
+  writeTimeout?: number;
+  readTimeout?: number;
+  retries?: number;
 }
 
 interface TargetInput {
@@ -27,7 +32,11 @@ interface TargetInput {
   host: string;
   path: string;
   port: number;
-  protocol: "http" | "https";
+  protocol: ServiceProtocol;
+  connectTimeout?: number;
+  writeTimeout?: number;
+  readTimeout?: number;
+  retries?: number;
 }
 
 interface UpdateInput {
@@ -39,7 +48,12 @@ interface UpdateInput {
   host?: string;
   path?: string | null;
   port?: number | null;
-  protocol?: "http" | "https" | null;
+  protocol?: ServiceProtocol | null;
+  ownerContact?: string | null;
+  connectTimeout?: number;
+  writeTimeout?: number;
+  readTimeout?: number;
+  retries?: number;
   isActive?: boolean;
 }
 
@@ -128,6 +142,15 @@ export class KongServicesService {
     const count = await this.prisma.serviceConsumer.count({
       where: { serviceId: id, status: "ACTIVE" },
     });
+    const kongService = await this.kong
+      .get<{
+        url?: string;
+        protocol?: string;
+        host?: string;
+        port?: number;
+        path?: string;
+      }>(`/services/${service.kongName}`)
+      .catch(() => null);
     const auditEntries = await this.prisma.auditLog.findMany({
       where: { resourceType: "service", resourceName: id },
       orderBy: { createdAt: "desc" },
@@ -136,6 +159,15 @@ export class KongServicesService {
     return {
       ...service,
       consumerCount: count,
+      kongTarget: kongService
+        ? {
+            url: kongService.url ?? null,
+            protocol: kongService.protocol ?? null,
+            host: kongService.host ?? null,
+            port: kongService.port ?? null,
+            path: kongService.path ?? null,
+          }
+        : null,
       auditSummary: auditEntries.map((e) => ({
         action: e.action,
         actor: e.actor,
@@ -172,6 +204,7 @@ export class KongServicesService {
         description: input.description,
         kongName: input.kongName,
         tags: input.tags ?? Prisma.JsonNull,
+        ownerContact: input.ownerContact ?? null,
       },
     });
 
@@ -217,6 +250,10 @@ export class KongServicesService {
       port: input.port ?? 80,
       protocol: input.protocol ?? "http",
       url: input.url,
+      connectTimeout: input.connectTimeout,
+      writeTimeout: input.writeTimeout,
+      readTimeout: input.readTimeout,
+      retries: input.retries,
     });
 
     const kongPatch: Record<string, unknown> = {
@@ -236,6 +273,9 @@ export class KongServicesService {
         ...(input.description !== undefined ? { description: input.description } : {}),
         ...(input.kongName !== undefined ? { kongName: input.kongName } : {}),
         ...(input.tags !== undefined ? { tags: input.tags ?? Prisma.DbNull } : {}),
+        ...(input.ownerContact !== undefined
+          ? { ownerContact: input.ownerContact ?? null }
+          : {}),
         ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
       },
     });
@@ -254,12 +294,14 @@ export class KongServicesService {
         description: existing.description,
         kongName: existing.kongName,
         tags: existing.tags,
+        ownerContact: existing.ownerContact,
       },
       afterJson: {
         name: after?.name,
         description: after?.description,
         kongName: after?.kongName,
         tags: after?.tags,
+        ownerContact: after?.ownerContact,
         kong,
       },
     });
@@ -299,15 +341,33 @@ export class KongServicesService {
   }
 
   private buildTarget(input: TargetInput) {
-    if (input.url) {
-      return { url: input.url };
+    const timeouts: Record<string, unknown> = {};
+    if (input.connectTimeout !== undefined) {
+      timeouts.connect_timeout = input.connectTimeout;
     }
-    return {
+    if (input.writeTimeout !== undefined) {
+      timeouts.write_timeout = input.writeTimeout;
+    }
+    if (input.readTimeout !== undefined) {
+      timeouts.read_timeout = input.readTimeout;
+    }
+    if (input.retries !== undefined) {
+      timeouts.retries = input.retries;
+    }
+
+    if (input.url) {
+      return { url: input.url, ...timeouts };
+    }
+    const target: Record<string, unknown> = {
       host: input.host,
-      path: input.path,
       port: input.port,
       protocol: input.protocol,
+      ...timeouts,
     };
+    if (input.protocol === "http" || input.protocol === "https") {
+      target.path = input.path;
+    }
+    return target;
   }
 
   private actorName(user: RequestUser): string {

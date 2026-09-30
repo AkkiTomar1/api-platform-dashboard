@@ -79,14 +79,15 @@ model AuditLog {
 }
 
 model GatewayService {
-  id          String   @id @default(uuid())
-  name        String
-  description String
-  kongName    String
-  tags        Json?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(uuid())
+  name         String
+  description  String
+  kongName     String
+  tags         Json?
+  ownerContact String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   serviceConsumers ServiceConsumer[]
 

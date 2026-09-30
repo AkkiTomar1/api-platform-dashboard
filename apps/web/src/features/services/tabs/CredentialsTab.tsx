@@ -7,11 +7,10 @@ import {
   EmptyState,
   Modal,
   Input,
-  Spinner,
+  ConfirmDialog,
   toast,
   Plus,
   Trash2,
-  Eye,
   EyeOff,
 } from "@ui";
 import type { Column } from "@ui";
@@ -25,6 +24,7 @@ import { listConsumers } from "@/api/consumers";
 import type { ServiceDetail } from "@/api/services";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/api/roleAssignments";
+import { QueryState } from "@/components/QueryState";
 
 export function CredentialsTab({ service }: { service: ServiceDetail }) {
   const { user } = useAuth();
@@ -34,6 +34,8 @@ export function CredentialsTab({ service }: { service: ServiceDetail }) {
   const [keyInput, setKeyInput] = useState("");
   const [revealed, setRevealed] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<KeyAuthCredential | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const canCreate = hasPermission(user, "credentials:create");
   const canDelete = hasPermission(user, "credentials:delete");
@@ -89,15 +91,20 @@ export function CredentialsTab({ service }: { service: ServiceDetail }) {
     }
   };
 
-  const handleDelete = async (credentialId: string) => {
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
     try {
       const ids = await consumerIdsForService();
       if (ids.length === 0) return;
-      await deleteKeyAuthCredential(ids[0], credentialId);
+      await deleteKeyAuthCredential(ids[0], confirmDelete.id);
       toast.success("Credential deleted");
+      setConfirmDelete(null);
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -106,7 +113,7 @@ export function CredentialsTab({ service }: { service: ServiceDetail }) {
       key: "key",
       header: "Key",
       render: (c) => (
-        <code className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-700">
+        <code className="rounded bg-surface-muted px-2 py-0.5 font-mono text-xs text-ink-strong">
           {c.key}
         </code>
       ),
@@ -120,9 +127,9 @@ export function CredentialsTab({ service }: { service: ServiceDetail }) {
           <Button
             variant="ghost"
             size="sm"
-            className="text-red-600 hover:bg-red-50"
+            className="text-red-500 hover:bg-red-500/10 hover:text-red-600"
             leftIcon={<Trash2 className="h-3.5 w-3.5" />}
-            onClick={() => void handleDelete(c.id)}
+            onClick={() => setConfirmDelete(c)}
           >
             Delete
           </Button>
@@ -141,40 +148,38 @@ export function CredentialsTab({ service }: { service: ServiceDetail }) {
       </div>
 
       {revealed !== null ? (
-        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-500/30 dark:bg-emerald-500/10">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-emerald-800">
+            <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
               Secret shown once — copy it now
             </p>
             <button
               type="button"
-              onClick={() => setRevealed((r) => (r === null ? r : null))}
-              className="text-emerald-700 hover:text-emerald-900"
+              onClick={() => setRevealed(null)}
+              className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400"
               aria-label="Hide secret"
             >
-              {revealed !== null ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              <EyeOff className="h-4 w-4" />
             </button>
           </div>
-          <code className="mt-1 block break-all rounded bg-emerald-100 px-2 py-1 font-mono text-xs text-emerald-900">
+          <code className="mt-1 block break-all rounded bg-emerald-100 px-2 py-1 font-mono text-xs text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200">
             {revealed}
           </code>
         </div>
       ) : null}
 
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <Spinner size="lg" />
-        </div>
-      ) : creds.length === 0 ? (
-        <Card>
-          <EmptyState
-            title="No credentials"
-            description="No key-auth credentials for this service's consumers."
-          />
-        </Card>
-      ) : (
-        <Table columns={columns} rows={creds} rowKey={(c) => c.id} />
-      )}
+      <QueryState loading={loading} error={null}>
+        {creds.length === 0 ? (
+          <Card>
+            <EmptyState
+              title="No credentials"
+              description="No key-auth credentials for this service's consumers."
+            />
+          </Card>
+        ) : (
+          <Table columns={columns} rows={creds} rowKey={(c) => c.id} />
+        )}
+      </QueryState>
 
       <div className="mt-3">
         <Badge tone="amber">Secret keys are stored redacted in audit logs.</Badge>
@@ -203,6 +208,26 @@ export function CredentialsTab({ service }: { service: ServiceDetail }) {
           </div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Delete credential"
+        description="This permanently revokes the key-auth credential."
+        confirmLabel="Delete"
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(null)}
+      >
+        {confirmDelete ? (
+          <p className="text-sm text-ink">
+            Are you sure you want to delete credential{" "}
+            <code className="rounded bg-surface-muted px-1.5 py-0.5 font-mono text-xs text-ink-strong">
+              {confirmDelete.key}
+            </code>
+            ?
+          </p>
+        ) : null}
+      </ConfirmDialog>
     </div>
   );
 }

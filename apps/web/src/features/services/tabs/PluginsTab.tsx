@@ -5,7 +5,7 @@ import {
   Table,
   Badge,
   EmptyState,
-  Spinner,
+  ConfirmDialog,
   toast,
   Plus,
   Pencil,
@@ -29,6 +29,7 @@ import type { ServiceDetail } from "@/api/services";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/api/roleAssignments";
 import { PluginModal, type PluginModalSubmit } from "@/features/plugins/PluginModal";
+import { QueryState } from "@/components/QueryState";
 
 interface PluginRow {
   plugin: KongPlugin;
@@ -49,6 +50,8 @@ export function PluginsTab({ service }: { service: ServiceDetail }) {
   const [level, setLevel] = useState<"service" | "route">("service");
   const [routeId, setRouteId] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<PluginRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const canCreate = hasPermission(user, "plugins:create");
   const canUpdate = hasPermission(user, "plugins:update");
@@ -150,17 +153,23 @@ export function PluginsTab({ service }: { service: ServiceDetail }) {
     }
   };
 
-  const handleDelete = async (row: PluginRow) => {
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
     try {
+      const row = confirmDelete;
       if (row.level === "route" && row.routeId) {
         await deleteRoutePlugin(row.routeId, row.plugin.id);
       } else {
         await deletePlugin(service.id, row.plugin.id);
       }
       toast.success("Plugin deleted");
+      setConfirmDelete(null);
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -195,7 +204,7 @@ export function PluginsTab({ service }: { service: ServiceDetail }) {
       key: "config",
       header: "Config keys",
       render: (row) => (
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-ink-soft">
           {Object.keys(row.plugin.config ?? {}).join(", ") || "—"}
         </span>
       ),
@@ -219,9 +228,9 @@ export function PluginsTab({ service }: { service: ServiceDetail }) {
             <Button
               variant="ghost"
               size="sm"
-              className="text-red-600 hover:bg-red-50"
+              className="text-red-500 hover:bg-red-500/10 hover:text-red-600"
               leftIcon={<Trash2 className="h-3.5 w-3.5" />}
-              onClick={() => void handleDelete(row)}
+              onClick={() => setConfirmDelete(row)}
             >
               Delete
             </Button>
@@ -240,20 +249,18 @@ export function PluginsTab({ service }: { service: ServiceDetail }) {
           </Button>
         ) : null}
       </div>
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <Spinner size="lg" />
-        </div>
-      ) : rows.length === 0 ? (
-        <Card>
-          <EmptyState
-            title="No plugins"
-            description="No plugins are enabled on this service or its routes."
-          />
-        </Card>
-      ) : (
-        <Table columns={columns} rows={rows} rowKey={(row) => row.plugin.id} />
-      )}
+      <QueryState loading={loading} error={null}>
+        {rows.length === 0 ? (
+          <Card>
+            <EmptyState
+              title="No plugins"
+              description="No plugins are enabled on this service or its routes."
+            />
+          </Card>
+        ) : (
+          <Table columns={columns} rows={rows} rowKey={(row) => row.plugin.id} />
+        )}
+      </QueryState>
 
       <PluginModal
         open={open}
@@ -272,6 +279,26 @@ export function PluginsTab({ service }: { service: ServiceDetail }) {
         title={editing ? `Edit ${editing.name}` : "Add plugin"}
         description="Plugins extend service behaviour (auth, rate limiting, CORS…) at service or route level."
       />
+
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Delete plugin"
+        description="This removes the plugin from the gateway."
+        confirmLabel="Delete"
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(null)}
+      >
+        {confirmDelete ? (
+          <p className="text-sm text-ink">
+            Are you sure you want to delete{" "}
+            <span className="font-semibold text-ink-strong">
+              {confirmDelete.plugin.name}
+            </span>{" "}
+            at {levelLabel(confirmDelete)} level?
+          </p>
+        ) : null}
+      </ConfirmDialog>
     </div>
   );
 }

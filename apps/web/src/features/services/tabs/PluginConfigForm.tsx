@@ -48,13 +48,13 @@ function PluginFieldControl({
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
-              className="h-4 w-4 accent-violet-600"
+              className="h-4 w-4 accent-brand-600"
               checked={Boolean(value ?? field.default ?? false)}
               onChange={(e) => onChange(e.target.checked)}
             />
-            <span className="text-sm font-medium text-slate-700">{field.label}</span>
+            <span className="text-sm font-medium text-ink">{field.label}</span>
           </label>
-          {field.hint ? <p className="mt-1 text-xs text-slate-500">{field.hint}</p> : null}
+          {field.hint ? <p className="mt-1 text-xs text-ink-soft">{field.hint}</p> : null}
         </div>
       );
     case "number":
@@ -82,14 +82,14 @@ function PluginFieldControl({
               ...(field.options ?? []).map((opt) => ({ value: opt, label: opt })),
             ]}
           />
-          {field.hint ? <p className="mt-1 text-xs text-slate-500">{field.hint}</p> : null}
+          {field.hint ? <p className="mt-1 text-xs text-ink-soft">{field.hint}</p> : null}
         </div>
       );
     case "stringList":
     case "keyValue":
       return (
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
+          <label className="mb-1 block text-sm font-medium text-ink">
             {field.label}
           </label>
           <textarea
@@ -98,9 +98,9 @@ function PluginFieldControl({
             placeholder={field.placeholder ?? (field.type === "keyValue" ? "key=value" : "one per line")}
             value={typeof value === "string" ? value : ""}
             onChange={(e) => onChange(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 p-3 font-mono text-xs text-slate-900 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200"
+            className="w-full rounded-lg border border-hairline bg-surface-inset p-3 font-mono text-xs text-ink-strong placeholder:text-ink-faint focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:focus:ring-brand-600/30"
           />
-          {field.hint ? <p className="mt-1 text-xs text-slate-500">{field.hint}</p> : null}
+          {field.hint ? <p className="mt-1 text-xs text-ink-soft">{field.hint}</p> : null}
         </div>
       );
     default:

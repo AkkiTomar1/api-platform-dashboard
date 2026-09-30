@@ -3,9 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Input, Select, Button } from "@ui";
 import type { ServiceCreateInput } from "@/api/services";
-import { serviceCreateSchema } from "@shared";
-import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { serviceCreateSchema, SERVICE_PROTOCOLS } from "@shared";
 
 type FormValues = z.infer<typeof serviceCreateSchema>;
 
@@ -14,6 +12,11 @@ export interface ServiceFormModalProps {
   onSubmit: (values: FormValues) => Promise<void>;
   submitting: boolean;
 }
+
+const protocolOptions = SERVICE_PROTOCOLS.map((p) => ({
+  value: p,
+  label: p,
+}));
 
 export function ServiceFormModal({ initial, onSubmit, submitting }: ServiceFormModalProps) {
   const {
@@ -31,9 +34,13 @@ export function ServiceFormModal({ initial, onSubmit, submitting }: ServiceFormM
       port: initial?.port ?? 80,
       protocol: initial?.protocol ?? "http",
       url: initial?.url ?? null,
+      ownerContact: initial?.ownerContact ?? "",
+      connectTimeout: initial?.connectTimeout ?? 60000,
+      writeTimeout: initial?.writeTimeout ?? 60000,
+      readTimeout: initial?.readTimeout ?? 60000,
+      retries: initial?.retries ?? 5,
     },
   });
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   return (
     <form onSubmit={handleSubmit((v) => void onSubmit(v))} className="space-y-4">
@@ -49,55 +56,82 @@ export function ServiceFormModal({ initial, onSubmit, submitting }: ServiceFormM
         error={errors.description?.message}
         {...register("description")}
       />
+      <div className="grid grid-cols-2 gap-3">
+        <Input
+          label="Kong Name"
+          placeholder="catalog-api"
+          error={errors.kongName?.message}
+          {...register("kongName")}
+        />
+        <Input
+          label="Owner Contact"
+          placeholder="team@example.com"
+          hint="Optional"
+          error={errors.ownerContact?.message}
+          {...register("ownerContact")}
+        />
+      </div>
       <Input
-        label="Kong Name"
-        placeholder="catalog-api"
-        error={errors.kongName?.message}
-        {...register("kongName")}
+        label="Upstream URL"
+        placeholder="https://api.example.com"
+        hint="Optional. If set, overrides the host / port / path / protocol below."
+        error={errors.url?.message}
+        {...register("url")}
       />
 
-      <button
-        type="button"
-        onClick={() => setShowAdvanced((s) => !s)}
-        className="flex items-center gap-1 text-sm font-medium text-brand-600 hover:underline"
-      >
-        {showAdvanced ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        {showAdvanced ? "Hide upstream" : "Configure upstream"}
-      </button>
-
-      {showAdvanced ? (
-        <div className="space-y-4 rounded-lg border border-slate-200 p-4">
+      <div className="space-y-4 rounded-lg border border-hairline bg-surface-inset/50 p-4">
+        <p className="text-sm font-medium text-ink-strong">Upstream target</p>
+        <div className="grid grid-cols-2 gap-3">
           <Input label="Host" error={errors.host?.message} {...register("host")} />
           <Input
-            label="Path"
-            error={errors.path?.message}
-            {...register("path")}
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Port"
-              type="number"
-              error={errors.port?.message}
-              {...register("port", { valueAsNumber: true })}
-            />
-            <Select
-              label="Protocol"
-              error={errors.protocol?.message}
-              options={[
-                { value: "http", label: "http" },
-                { value: "https", label: "https" },
-              ]}
-              {...register("protocol")}
-            />
-          </div>
-          <Input
-            label="Full URL (overrides host/path)"
-            placeholder="https://api.example.com"
-            error={errors.url?.message}
-            {...register("url")}
+            label="Port"
+            type="number"
+            error={errors.port?.message}
+            {...register("port", { valueAsNumber: true })}
           />
         </div>
-      ) : null}
+        <div className="grid grid-cols-2 gap-3">
+          <Input label="Path" error={errors.path?.message} {...register("path")} />
+          <Select
+            label="Protocol"
+            error={errors.protocol?.message}
+            options={protocolOptions}
+            {...register("protocol")}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-4 rounded-lg border border-hairline bg-surface-inset/50 p-4">
+        <p className="text-sm font-medium text-ink-strong">Timeouts & retries</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="Connect timeout (ms)"
+            type="number"
+            error={errors.connectTimeout?.message}
+            {...register("connectTimeout", { valueAsNumber: true })}
+          />
+          <Input
+            label="Read timeout (ms)"
+            type="number"
+            error={errors.readTimeout?.message}
+            {...register("readTimeout", { valueAsNumber: true })}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="Write timeout (ms)"
+            type="number"
+            error={errors.writeTimeout?.message}
+            {...register("writeTimeout", { valueAsNumber: true })}
+          />
+          <Input
+            label="Retries"
+            type="number"
+            error={errors.retries?.message}
+            {...register("retries", { valueAsNumber: true })}
+          />
+        </div>
+      </div>
 
       <div className="flex justify-end gap-2 pt-2">
         <Button type="submit" loading={submitting}>

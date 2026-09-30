@@ -17,6 +17,18 @@ export const paginationQuerySchema = z.object({
 
 export type PaginationQuery = z.infer<typeof paginationQuerySchema>;
 
+export const SERVICE_PROTOCOLS = [
+  "http",
+  "https",
+  "grpc",
+  "grpcs",
+  "tcp",
+  "tls",
+  "udp",
+] as const;
+
+export type ServiceProtocol = (typeof SERVICE_PROTOCOLS)[number];
+
 export const loginBodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
@@ -48,11 +60,23 @@ export const serviceCreateSchema = z.object({
   description: z.string().max(500).optional().default(""),
   kongName: z.string().min(1).max(120),
   tags: z.array(z.string()).optional(),
-  url: z.string().nullable().optional(),
-  host: z.string().min(1),
+  url: z
+    .union([
+      z.literal(""),
+      z.string().trim().url("Enter a valid URL, e.g. https://api.example.com"),
+    ])
+    .optional()
+    .nullable()
+    .transform((v) => (v === "" ? null : v)),
+  host: z.string().min(1).optional().default("localhost"),
   path: z.string().startsWith("/").optional().default("/"),
   port: z.coerce.number().int().min(1).max(65535).optional().default(80),
-  protocol: z.enum(["http", "https"]).optional().default("http"),
+  protocol: z.enum(SERVICE_PROTOCOLS).optional().default("http"),
+  ownerContact: z.string().max(120).optional().default(""),
+  connectTimeout: z.coerce.number().int().min(0).optional().default(60000),
+  writeTimeout: z.coerce.number().int().min(0).optional().default(60000),
+  readTimeout: z.coerce.number().int().min(0).optional().default(60000),
+  retries: z.coerce.number().int().min(0).optional().default(5),
 });
 
 export const serviceUpdateSchema = z.object({
@@ -60,11 +84,23 @@ export const serviceUpdateSchema = z.object({
   description: z.string().max(500).optional(),
   kongName: z.string().min(1).max(120).optional(),
   tags: z.array(z.string()).nullable().optional(),
-  url: z.string().nullable().optional(),
+  url: z
+    .union([
+      z.literal(""),
+      z.string().trim().url("Enter a valid URL, e.g. https://api.example.com"),
+    ])
+    .optional()
+    .nullable()
+    .transform((v) => (v === "" ? null : v)),
   host: z.string().min(1).optional(),
   path: z.string().startsWith("/").nullable().optional(),
   port: z.coerce.number().int().min(1).max(65535).nullable().optional(),
-  protocol: z.enum(["http", "https"]).nullable().optional(),
+  protocol: z.enum(SERVICE_PROTOCOLS).nullable().optional(),
+  ownerContact: z.string().max(120).nullable().optional(),
+  connectTimeout: z.coerce.number().int().min(0).optional(),
+  writeTimeout: z.coerce.number().int().min(0).optional(),
+  readTimeout: z.coerce.number().int().min(0).optional(),
+  retries: z.coerce.number().int().min(0).optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -76,6 +112,7 @@ export const routeCreateSchema = z.object({
   protocols: z.array(z.enum(["http", "https"])).optional().default(["http", "https"]),
   stripPath: z.boolean().optional().default(true),
   preserveHost: z.boolean().optional().default(false),
+  regexPriority: z.coerce.number().int().min(0).max(1_000_000).optional(),
   serviceId: z.string().min(1).optional(),
 });
 

@@ -11,6 +11,7 @@ export interface GatewayServiceSummary {
   description: string;
   kongName: string;
   tags: string[] | null;
+  ownerContact: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -32,7 +33,16 @@ export interface ServiceListQuery {
   sortOrder?: "asc" | "desc";
 }
 
+export interface KongTarget {
+  url: string | null;
+  protocol: string | null;
+  host: string | null;
+  port: number | null;
+  path: string | null;
+}
+
 export interface ServiceDetail extends GatewayServiceSummary {
+  kongTarget: KongTarget | null;
   auditSummary: Array<{
     action: string;
     actor: string;

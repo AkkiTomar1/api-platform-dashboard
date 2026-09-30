@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { Card, Table, Badge, EmptyState, Spinner, toast } from "@ui";
+import { Card, Table, Badge, EmptyState, toast } from "@ui";
 import type { Column } from "@ui";
 import { listAuditLogs, type AuditLogEntry } from "@/api/audit";
 import type { ServiceDetail } from "@/api/services";
 import { formatDate } from "@/lib/format";
 import { DiffModal } from "@/features/auditLogs/components/DiffModal";
+import { QueryState } from "@/components/QueryState";
 
 export function AuditHistoryTab({ service }: { service: ServiceDetail }) {
   const [entries, setEntries] = useState<AuditLogEntry[]>([]);
@@ -17,7 +18,6 @@ export function AuditHistoryTab({ service }: { service: ServiceDetail }) {
       const res = await listAuditLogs({
         serviceId: service.id,
         pageSize: 25,
-        limit: 50,
       });
       setEntries(res.data);
     } catch {
@@ -66,17 +66,15 @@ export function AuditHistoryTab({ service }: { service: ServiceDetail }) {
 
   return (
     <div>
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <Spinner size="lg" />
-        </div>
-      ) : entries.length === 0 ? (
-        <Card>
-          <EmptyState title="No audit events" description="No activity for this service yet." />
-        </Card>
-      ) : (
-        <Table columns={columns} rows={entries} rowKey={(e) => e.id} />
-      )}
+      <QueryState loading={loading} error={null}>
+        {entries.length === 0 ? (
+          <Card>
+            <EmptyState title="No audit events" description="No activity for this service yet." />
+          </Card>
+        ) : (
+          <Table columns={columns} rows={entries} rowKey={(e) => e.id} />
+        )}
+      </QueryState>
 
       <DiffModal entry={diffTarget} onClose={() => setDiffTarget(null)} />
     </div>

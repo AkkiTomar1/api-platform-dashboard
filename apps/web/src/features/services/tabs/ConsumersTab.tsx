@@ -5,7 +5,6 @@ import {
   Table,
   Badge,
   EmptyState,
-  Spinner,
   toast,
   Plus,
 } from "@ui";
@@ -21,6 +20,7 @@ import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/api/roleAssignments";
 import { ConsumerFormModal } from "@/features/consumers/ConsumerFormModal";
 import { formatDate } from "@/lib/format";
+import { QueryState } from "@/components/QueryState";
 
 export function ConsumersTab({ service }: { service: ServiceDetail }) {
   const { user } = useAuth();
@@ -96,7 +96,7 @@ export function ConsumersTab({ service }: { service: ServiceDetail }) {
           <Button
             variant="ghost"
             size="sm"
-            className="text-amber-600 hover:bg-amber-50"
+            className="text-amber-600 hover:bg-amber-500/10"
             onClick={() => void handleSetStatus(c.id, "REVOKED")}
           >
             Revoke
@@ -105,7 +105,7 @@ export function ConsumersTab({ service }: { service: ServiceDetail }) {
           <Button
             variant="ghost"
             size="sm"
-            className="text-emerald-600 hover:bg-emerald-50"
+            className="text-emerald-600 hover:bg-emerald-500/10"
             onClick={() => void handleSetStatus(c.id, "ACTIVE")}
           >
             Activate
@@ -124,17 +124,15 @@ export function ConsumersTab({ service }: { service: ServiceDetail }) {
           </Button>
         ) : null}
       </div>
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <Spinner size="lg" />
-        </div>
-      ) : consumers.length === 0 ? (
-        <Card>
-          <EmptyState title="No consumers" description="No consumers are linked to this service." />
-        </Card>
-      ) : (
-        <Table columns={columns} rows={consumers} rowKey={(c) => c.id} />
-      )}
+      <QueryState loading={loading} error={null}>
+        {consumers.length === 0 ? (
+          <Card>
+            <EmptyState title="No consumers" description="No consumers are linked to this service." />
+          </Card>
+        ) : (
+          <Table columns={columns} rows={consumers} rowKey={(c) => c.id} />
+        )}
+      </QueryState>
 
       <ConsumerFormModal
         open={open}

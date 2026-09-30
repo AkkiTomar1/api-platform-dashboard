@@ -4,7 +4,6 @@ import {
   PageHeader,
   Tabs,
   Badge,
-  Spinner,
   toast,
   ChevronLeft,
 } from "@ui";
@@ -18,13 +17,20 @@ import { OverviewTab } from "./tabs/OverviewTab";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/api/roleAssignments";
 import { PERMISSIONS } from "@shared";
+import { QueryState } from "@/components/QueryState";
+import { usePageTitle } from "@/lib/use-page-title";
+import { useBreadcrumb } from "@/components/Breadcrumbs";
 
 export function ServiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const [service, setService] = useState<ServiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState("overview");
+
+  usePageTitle(service?.name ? `Service · ${service.name}` : "Service");
+  useBreadcrumb(service ? service.name : null);
 
   const canReadConsumers = hasPermission(user, PERMISSIONS.CONSUMERS_READ);
   const canReadCredentials = hasPermission(user, PERMISSIONS.CREDENTIALS_READ);
@@ -32,10 +38,12 @@ export function ServiceDetailPage() {
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
+    setError(null);
     try {
       const detail = await getService(id);
       setService(detail);
-    } catch {
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load service");
       toast.error("Failed to load service");
     } finally {
       setLoading(false);
@@ -48,8 +56,13 @@ export function ServiceDetailPage() {
 
   if (loading || service === null) {
     return (
-      <div className="flex justify-center py-24">
-        <Spinner size="lg" />
+      <div>
+        <Link to="/services" className="mb-3 inline-flex items-center gap-1 text-sm text-ink-soft transition-colors hover:text-ink-strong">
+          <ChevronLeft className="h-4 w-4" /> Services
+        </Link>
+        <QueryState loading={loading} error={error} onRetry={load}>
+          <div />
+        </QueryState>
       </div>
     );
   }
@@ -69,13 +82,13 @@ export function ServiceDetailPage() {
 
   return (
     <div>
-      <Link to="/services" className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700">
+      <Link to="/services" className="mb-3 inline-flex items-center gap-1 text-sm text-ink-soft transition-colors hover:text-ink-strong">
         <ChevronLeft className="h-4 w-4" /> Services
       </Link>
       <PageHeader
         title={service.name}
         description={`${service.kongName} · ${service.description}`}
-        breadcrumbs={["Services", service.name]}
+        breadcrumbs={[{ label: "Services", to: "/services" }, service.name]}
         actions={
           <Badge tone={service.isActive ? "green" : "red"}>
             {service.isActive ? "Active" : "Inactive"}

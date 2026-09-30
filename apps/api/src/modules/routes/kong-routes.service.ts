@@ -17,6 +17,7 @@ interface RouteCreateInput {
   protocols?: string[];
   stripPath?: boolean;
   preserveHost?: boolean;
+  regexPriority?: number;
   serviceId: string;
 }
 
@@ -77,6 +78,9 @@ export class KongRoutesService {
       protocols: input.protocols ?? ["http", "https"],
       strip_path: input.stripPath ?? true,
       preserve_host: input.preserveHost ?? false,
+      ...(input.regexPriority !== undefined
+        ? { regex_priority: input.regexPriority }
+        : {}),
     });
 
     this.audit.record({
@@ -115,6 +119,7 @@ export class KongRoutesService {
     if (input.protocols !== undefined) body.protocols = input.protocols;
     if (input.stripPath !== undefined) body.strip_path = input.stripPath;
     if (input.preserveHost !== undefined) body.preserve_host = input.preserveHost;
+    if (input.regexPriority !== undefined) body.regex_priority = input.regexPriority;
 
     const updated = await this.kong.patch(`/routes/${routeId}`, body);
 

@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  Card,
   Button,
-  Table,
+  DataTable,
   Badge,
   EmptyState,
   Modal,
   Input,
-  Spinner,
+  ConfirmDialog,
   toast,
   Plus,
   Trash2,
@@ -25,12 +24,14 @@ import {
 import type { ServiceDetail } from "@/api/services";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/api/roleAssignments";
+import { QueryState } from "@/components/QueryState";
 
 const routeFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
   pathsCsv: z.string().min(1, "At least one path is required"),
   methodsCsv: z.string().optional().default(""),
   hostsCsv: z.string().optional().default(""),
+  regexPriority: z.string().optional().default(""),
   stripPath: z.boolean().optional().default(true),
   preserveHost: z.boolean().optional().default(false),
 });
@@ -50,6 +51,8 @@ export function RoutesTab({ service }: { service: ServiceDetail }) {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<KongRoute | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const canCreate = hasPermission(user, "routes:create");
   const canDelete = hasPermission(user, "routes:delete");
@@ -88,6 +91,9 @@ export function RoutesTab({ service }: { service: ServiceDetail }) {
         hosts: splitCsv(values.hostsCsv),
         stripPath: values.stripPath,
         preserveHost: values.preserveHost,
+        ...(values.regexPriority !== ""
+          ? { regexPriority: Number(values.regexPriority) }
+          : {}),
       });
       toast.success("Route created");
       setOpen(false);
@@ -100,13 +106,18 @@ export function RoutesTab({ service }: { service: ServiceDetail }) {
     }
   };
 
-  const handleDelete = async (routeId: string) => {
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
     try {
-      await deleteRoute(service.id, routeId);
+      await deleteRoute(service.id, confirmDelete.id);
       toast.success("Route deleted");
+      setConfirmDelete(null);
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -118,7 +129,7 @@ export function RoutesTab({ service }: { service: ServiceDetail }) {
       render: (r) => (
         <div className="flex flex-wrap gap-1">
           {(r.paths ?? []).map((p) => (
-            <code key={p} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
+            <code key={p} className="rounded bg-surface-muted px-1.5 py-0.5 font-mono text-xs text-ink">
               {p}
             </code>
           ))}
@@ -131,12 +142,39 @@ export function RoutesTab({ service }: { service: ServiceDetail }) {
       render: (r) => (
         <div className="flex flex-wrap gap-1">
           {(r.methods ?? []).length === 0 ? (
-            <span className="text-xs text-slate-400">all</span>
+            <span className="text-xs text-ink-faint">all</span>
           ) : (
             (r.methods ?? []).map((m) => <Badge key={m} tone="blue">{m}</Badge>)
           )}
         </div>
       ),
+    },
+    {
+      key: "protocols",
+      header: "Protocols",
+      render: (r) => (
+        <div className="flex flex-wrap gap-1">
+          {(r.protocols ?? []).length === 0 ? (
+            <span className="text-xs text-ink-faint">—</span>
+          ) : (
+            (r.protocols ?? []).map((p) => (
+              <code key={p} className="rounded bg-surface-muted px-1.5 py-0.5 font-mono text-xs text-ink">
+                {p}
+              </code>
+            ))
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "regex_priority",
+      header: "Regex Priority",
+      render: (r) =>
+        r.regex_priority !== undefined && r.regex_priority !== 0 ? (
+          <Badge tone="amber">{r.regex_priority}</Badge>
+        ) : (
+          <span className="text-xs text-ink-faint">—</span>
+        ),
     },
     {
       key: "strip_path",
@@ -151,11 +189,11 @@ export function RoutesTab({ service }: { service: ServiceDetail }) {
           <Button
             variant="ghost"
             size="sm"
-            className="text-red-600 hover:bg-red-50"
+            className="text-red-500 hover:bg-red-500/10 hover:text-red-600"
             leftIcon={<Trash2 className="h-3.5 w-3.5" />}
             onClick={(e) => {
               e.stopPropagation();
-              void handleDelete(r.id);
+              setConfirmDelete(r);
             }}
           >
             Delete
@@ -173,17 +211,15 @@ export function RoutesTab({ service }: { service: ServiceDetail }) {
           </Button>
         ) : null}
       </div>
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <Spinner size="lg" />
-        </div>
-      ) : routes.length === 0 ? (
-        <Card>
-          <EmptyState title="No routes" description="This service has no routes yet." />
-        </Card>
-      ) : (
-        <Table columns={columns} rows={routes} rowKey={(r) => r.id} />
-      )}
+      <QueryState loading={loading} error={null}>
+        <DataTable
+          columns={columns}
+          rows={routes}
+          rowKey={(r) => r.id}
+          lastHeaderAlign="right"
+          empty={<EmptyState title="No routes" description="This service has no routes yet." />}
+        />
+      </QueryState>
 
       <Modal
         open={open}
@@ -211,13 +247,21 @@ export function RoutesTab({ service }: { service: ServiceDetail }) {
             error={errors.hostsCsv?.message}
             {...register("hostsCsv")}
           />
+          <Input
+            label="Regex priority (optional)"
+            placeholder="100"
+            hint="Higher number wins matching order for regex paths."
+            type="number"
+            error={errors.regexPriority?.message}
+            {...register("regexPriority")}
+          />
           <div className="flex items-center gap-2">
-            <input type="checkbox" {...register("stripPath")} className="h-4 w-4" />
-            <label className="text-sm text-slate-700">Strip path</label>
+            <input type="checkbox" {...register("stripPath")} className="h-4 w-4 rounded border-hairline accent-brand-600" />
+            <label className="text-sm text-ink">Strip path</label>
           </div>
           <div className="flex items-center gap-2">
-            <input type="checkbox" {...register("preserveHost")} className="h-4 w-4" />
-            <label className="text-sm text-slate-700">Preserve host</label>
+            <input type="checkbox" {...register("preserveHost")} className="h-4 w-4 rounded border-hairline accent-brand-600" />
+            <label className="text-sm text-ink">Preserve host</label>
           </div>
           <div className="flex justify-end">
             <Button type="submit" loading={submitting}>
@@ -226,6 +270,26 @@ export function RoutesTab({ service }: { service: ServiceDetail }) {
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Delete route"
+        description="This removes the route from the Kong gateway."
+        confirmLabel="Delete"
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(null)}
+      >
+        {confirmDelete ? (
+          <p className="text-sm text-ink">
+            Are you sure you want to delete{" "}
+            <span className="font-semibold text-ink-strong">
+              {confirmDelete.name ?? confirmDelete.id}
+            </span>
+            ?
+          </p>
+        ) : null}
+      </ConfirmDialog>
     </div>
   );
 }

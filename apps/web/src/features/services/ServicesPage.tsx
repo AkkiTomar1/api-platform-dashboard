@@ -5,20 +5,22 @@ import { serviceCreateSchema } from "@shared";
 import {
   PageHeader,
   Button,
-  Input,
   Select,
   Modal,
-  Table,
   Badge,
   Switch,
-  Spinner,
-  Search,
+  ConfirmDialog,
+  SearchInput,
+  DataTable,
   Plus,
   Pencil,
   Trash2,
   toast,
 } from "@ui";
 import type { Column } from "@ui";
+import { QueryState } from "@/components/QueryState";
+import { useDebouncedValue } from "@/lib/use-debounce";
+import { usePageTitle } from "@/lib/use-page-title";
 import {
   listServices,
   createService,
@@ -33,6 +35,7 @@ import { ServiceFormModal } from "./ServiceForm";
 type ServiceFormValues = z.infer<typeof serviceCreateSchema>;
 
 export function ServicesPage() {
+  usePageTitle("Services");
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -44,6 +47,7 @@ export function ServicesPage() {
     sortOrder: "asc" | "desc";
   }>({ search: "", sort: "name", sortOrder: "asc" });
   const [loading, setLoading] = useState(true);
+  const debouncedSearch = useDebouncedValue(query.search, 300);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<GatewayServiceSummary | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
@@ -59,6 +63,7 @@ export function ServicesPage() {
     try {
       const res = await listServices({
         ...query,
+        search: debouncedSearch,
         page: pagination.page,
         pageSize: pagination.pageSize,
       });
@@ -69,7 +74,7 @@ export function ServicesPage() {
     } finally {
       setLoading(false);
     }
-  }, [query, pagination.page, pagination.pageSize]);
+  }, [query, debouncedSearch, pagination.page, pagination.pageSize]);
 
   useEffect(() => {
     void load();
@@ -130,8 +135,8 @@ export function ServicesPage() {
       header: "Name",
       render: (row) => (
         <div>
-          <p className="font-medium text-slate-800">{row.name}</p>
-          <p className="text-xs text-slate-500">{row.kongName}</p>
+          <p className="font-medium text-ink-strong">{row.name}</p>
+          <p className="text-xs text-ink-soft">{row.kongName}</p>
         </div>
       ),
     },
@@ -139,8 +144,13 @@ export function ServicesPage() {
       key: "description",
       header: "Description",
       render: (row) => (
-        <span className="text-slate-600">{row.description || "—"}</span>
+        <span className="text-ink">{row.description || "—"}</span>
       ),
+    },
+    {
+      key: "ownerContact",
+      header: "Owner",
+      render: (row) => <span className="text-ink">{row.ownerContact || "—"}</span>,
     },
     {
       key: "consumerCount",
@@ -159,7 +169,7 @@ export function ServicesPage() {
             onClick={(e) => e.stopPropagation()}
             aria-label={row.isActive ? "Deactivate service" : "Activate service"}
           />
-          <span className={row.isActive ? "text-sm text-emerald-600" : "text-sm text-slate-500"}>
+          <span className={row.isActive ? "text-sm text-emerald-500" : "text-sm text-ink-soft"}>
             {row.isActive ? "Active" : "Inactive"}
           </span>
         </div>
@@ -188,7 +198,7 @@ export function ServicesPage() {
             <Button
               variant="ghost"
               size="sm"
-              className="text-red-600 hover:bg-red-50"
+              className="text-red-500 hover:bg-red-500/10 hover:text-red-600"
               leftIcon={<Trash2 className="h-3.5 w-3.5" />}
               onClick={(e) => {
                 e.stopPropagation();
@@ -224,15 +234,11 @@ export function ServicesPage() {
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative w-64">
-          <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-          <Input
-            className="pl-9"
-            placeholder="Search services…"
-            value={query.search}
-            onChange={(e) => setQuery((q) => ({ ...q, search: e.target.value }))}
-          />
-        </div>
+        <SearchInput
+          placeholder="Search services…"
+          value={query.search}
+          onChange={(e) => setQuery((q) => ({ ...q, search: e.target.value }))}
+        />
         <Select
           className="w-40"
           value={query.sort}
@@ -245,52 +251,47 @@ export function ServicesPage() {
         />
       </div>
 
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <Spinner size="lg" />
-        </div>
-      ) : (
-        <>
-          <Table
-            columns={columns}
-            rows={data}
-            rowKey={(r) => r.id}
-            onRowClick={(row) => {
-              navigate(`/services/${row.id}`);
-            }}
-          />
-          <div className="mt-4 flex items-center justify-between">
-            <p className="text-sm text-slate-500">
-              {pagination.total} service{pagination.total === 1 ? "" : "s"}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pagination.page <= 1}
-                onClick={() =>
-                  setPagination((p) => ({ ...p, page: p.page - 1 }))
-                }
-              >
-                Prev
-              </Button>
-              <span className="flex items-center px-2 text-sm text-slate-600">
-                Page {pagination.page}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pagination.page * pagination.pageSize >= pagination.total}
-                onClick={() =>
-                  setPagination((p) => ({ ...p, page: p.page + 1 }))
-                }
-              >
-                Next
-              </Button>
-            </div>
+      <QueryState loading={loading} error={null}>
+        <DataTable
+          columns={columns}
+          rows={data}
+          rowKey={(r) => r.id}
+          onRowClick={(row) => {
+            navigate(`/services/${row.id}`);
+          }}
+          lastHeaderAlign="right"
+        />
+        <div className="mt-4 flex items-center justify-between">
+          <p className="text-sm text-ink-soft">
+            {pagination.total} service{pagination.total === 1 ? "" : "s"}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pagination.page <= 1}
+              onClick={() =>
+                setPagination((p) => ({ ...p, page: p.page - 1 }))
+              }
+            >
+              Prev
+            </Button>
+            <span className="flex items-center px-2 text-sm text-ink">
+              Page {pagination.page}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pagination.page * pagination.pageSize >= pagination.total}
+              onClick={() =>
+                setPagination((p) => ({ ...p, page: p.page + 1 }))
+              }
+            >
+              Next
+            </Button>
           </div>
-        </>
-      )}
+        </div>
+      </QueryState>
 
       <Modal
         open={formOpen}
@@ -298,6 +299,7 @@ export function ServicesPage() {
           setFormOpen(false);
           setEditing(null);
         }}
+        size="lg"
         title={editing ? `Edit ${editing.name}` : "Create service"}
         description="Services map a gateway route to an upstream."
       >
@@ -309,6 +311,7 @@ export function ServicesPage() {
                     name: editing.name,
                     description: editing.description,
                     kongName: editing.kongName,
+                    ownerContact: editing.ownerContact ?? undefined,
                   }
                 : undefined
             }
@@ -318,29 +321,22 @@ export function ServicesPage() {
         ) : null}
       </Modal>
 
-      <Modal
+      <ConfirmDialog
         open={confirmDelete !== null}
-        onClose={() => setConfirmDelete(null)}
         title="Delete service"
         description="This soft-deletes the service (isActive=false) and removes its Kong upstream."
-        footer={
-          <>
-            <Button variant="outline" onClick={() => setConfirmDelete(null)}>
-              Cancel
-            </Button>
-            <Button variant="danger" loading={submitting} onClick={() => void handleDelete()}>
-              Delete
-            </Button>
-          </>
-        }
+        confirmLabel="Delete"
+        loading={submitting}
+        onConfirm={() => void handleDelete()}
+        onCancel={() => setConfirmDelete(null)}
       >
         {confirmDelete ? (
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-ink">
             Are you sure you want to delete{" "}
-            <span className="font-semibold text-slate-800">{confirmDelete.name}</span>?
+            <span className="font-semibold text-ink-strong">{confirmDelete.name}</span>?
           </p>
         ) : null}
-      </Modal>
+      </ConfirmDialog>
     </div>
   );
 }
