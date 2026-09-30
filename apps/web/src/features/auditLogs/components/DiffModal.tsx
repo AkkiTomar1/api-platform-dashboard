@@ -34,12 +34,12 @@ export function DiffModal({ entry, onClose }: DiffModalProps) {
         description={`${entry.action} ${entry.resourceType}`}
       >
         <div className="space-y-3">
-          <div className="flex flex-wrap gap-2 text-sm text-slate-600">
+          <div className="flex flex-wrap gap-2 text-sm text-ink">
             <Badge tone={actionTone}>{entry.action}</Badge>
             <span>{entry.resourceType}</span>
-            <span className="text-slate-400">{formatDate(entry.createdAt)}</span>
+            <span className="text-ink-faint">{formatDate(entry.createdAt)}</span>
           </div>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-ink-soft">
             No field-level changes recorded for this event.
           </p>
         </div>
@@ -56,17 +56,17 @@ export function DiffModal({ entry, onClose }: DiffModalProps) {
       size="lg"
     >
       <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+        <div className="flex flex-wrap items-center gap-2 text-sm text-ink">
           <Badge tone={actionTone}>{entry.action}</Badge>
           <Badge tone="gray">{formatDate(entry.createdAt)}</Badge>
-          <span className="text-xs text-slate-500">actor: {entry.actor}</span>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-ink-soft">actor: {entry.actor}</span>
+          <span className="text-xs text-ink-soft">
             changes: {diff.additions.length} added · {diff.removals.length} removed ·{" "}
             {diff.updates.length} updated
           </span>
         </div>
 
-        <div className="max-h-[50vh] overflow-auto rounded-lg border border-slate-200">
+        <div className="max-h-[50vh] overflow-auto rounded-lg border border-hairline">
           <table className={styles.table}>
             <thead>
               <tr className={styles.headerRow}>

@@ -1,11 +1,15 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
 
 @source "../../../../packages/ui/src";
 @source "../../../../packages/shared/src";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, monospace;
 
   --color-brand-50: #f5f3ff;
   --color-brand-100: #ede9fe;
@@ -17,15 +21,150 @@
   --color-brand-700: #6d28d9;
   --color-brand-800: #5b21b6;
   --color-brand-900: #4c1d95;
+
+  --color-accent-50: #ecfeff;
+  --color-accent-100: #cffafe;
+  --color-accent-200: #a5f3fc;
+  --color-accent-300: #67e8f9;
+  --color-accent-400: #22d3ee;
+  --color-accent-500: #06b6d4;
+  --color-accent-600: #0891b2;
+  --color-accent-700: #0e7490;
+  --color-accent-800: #155e75;
+  --color-accent-900: #164e63;
+
+  --color-radius: 0.75rem;
 }
 
 :root {
   color-scheme: light;
+  --surface-base: #f8fafc;
+  --surface-card: #ffffff;
+  --surface-muted: #f1f5f9;
+  --surface-inset: #f8fafc;
+  --ink-strong: #0f172a;
+  --ink: #334155;
+  --ink-soft: #64748b;
+  --ink-faint: #94a3b8;
+  --hairline: #e2e8f0;
+}
+
+.dark {
+  color-scheme: dark;
+  --surface-base: #0b1020;
+  --surface-card: #12182c;
+  --surface-muted: #191f38;
+  --surface-inset: #0e1428;
+  --ink-strong: #f1f5f9;
+  --ink: #c3cde2;
+  --ink-soft: #8b96b3;
+  --ink-faint: #667089;
+  --hairline: rgba(139, 150, 179, 0.18);
+}
+
+@theme inline {
+  --color-surface: var(--surface-base);
+  --color-surface-card: var(--surface-card);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-inset: var(--surface-inset);
+  --color-ink: var(--ink);
+  --color-ink-strong: var(--ink-strong);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-hairline: var(--hairline);
+}
+
+@utility text-gradient {
+  background-image: linear-gradient(
+    110deg,
+    var(--color-brand-500),
+    var(--color-accent-400)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility bg-brand-gradient {
+  background-image: linear-gradient(135deg, var(--color-brand-600), var(--color-brand-500) 55%, var(--color-accent-500));
+}
+
+@utility bg-glow {
+  background-image: radial-gradient(
+    80% 120% at 20% 0%,
+    color-mix(in srgb, var(--color-brand-500) 22%, transparent),
+    transparent 60%
+  );
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.25s ease-out;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-muted) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--surface-muted);
+  border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--ink-faint);
 }
 
 body {
   font-family: var(--font-sans);
-  background-color: #f8fafc;
-  color: #1e293b;
+  background-color: var(--surface-base);
+  color: var(--ink);
   -webkit-font-smoothing: antialiased;
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--color-brand-500) 25%, transparent);
 }

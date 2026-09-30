@@ -122,11 +122,11 @@ export function PluginModal({
           <div className="flex items-center gap-2 pt-7">
             <input
               type="checkbox"
-              className="h-4 w-4 accent-violet-600"
+              className="h-4 w-4 accent-brand-600"
               checked={enabled}
               onChange={(e) => setEnabled(e.target.checked)}
             />
-            <label className="text-sm text-slate-700">Enabled</label>
+            <label className="text-sm text-ink">Enabled</label>
           </div>
         </div>
 
@@ -168,7 +168,7 @@ export function PluginModal({
           />
         ) : (
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
+            <label className="mb-1 block text-sm font-medium text-ink">
               JSON config (advanced — no form available for this plugin)
             </label>
             <textarea
@@ -176,13 +176,14 @@ export function PluginModal({
               spellCheck={false}
               value={configJson}
               onChange={(e) => setConfigJson(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 p-3 font-mono text-xs text-slate-900 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200"
+              placeholder="{}"
+              className="w-full rounded-lg border border-hairline bg-surface-inset p-3 font-mono text-xs text-ink-strong placeholder:text-ink-faint focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:focus:ring-brand-600/30"
             />
           </div>
         )}
 
         {formError ? (
-          <p className="text-sm text-red-600">{formError}</p>
+          <p className="text-sm text-red-500">{formError}</p>
         ) : null}
 
         <div className="flex justify-end">
